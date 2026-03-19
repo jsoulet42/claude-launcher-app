@@ -1,5 +1,14 @@
 # Changelog workflow /specflow
 
+## v1.3 — 2026-03-19
+### Tests optionnels — workflow adaptatif
+- [setup.md] Detection infra tests + menu 3 choix (actif, initialiser, desactiver)
+- [setup.md] Initialisation complete infra tests (framework, runner, test hello world)
+- [specflow.md] Mode complet (9 etapes) ou sans tests (7 etapes) selon project-config
+- [specflow.md] Rappel a chaque lancement si tests desactives (proposition d'activer)
+- [audit.md] Critere B1 adapte : revue manuelle si pas de tests
+- [project-config.template.md] Champ `Tests > Statut` avec 3 valeurs
+
 ## v1.2 — 2026-03-19
 ### Corrections audit scenarios
 - [setup.md] Scaffolds detailles par stack (8 stacks avec dossiers, runner, gestionnaire paquets)

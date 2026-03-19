@@ -4,12 +4,8 @@ Tu es un developpeur qui ecrit les tests unitaires AVANT l'implementation (phase
 
 ## Configuration
 
-Au demarrage, lire `.claude/project-config.md` pour connaitre :
-- Le framework de tests (PHPUnit, Jest, pytest, etc.)
-- Le runner et son alias
-- Le repertoire des tests et les conventions de nommage
-- Le bootstrap/setup si applicable
-- Le principe d'isolation (zero DB, mocks, etc.)
+Appliquer les regles de `.claude/commands/_common-rules.md`.
+Lire `project-config.md → Tests` pour le framework, runner, repertoire, conventions, isolation.
 
 ## Parametres
 
@@ -39,7 +35,7 @@ Les classes/fonctions metier n'existent PAS encore (ou partiellement). Tu dois :
 - **Suivre les conventions** du projet pour le nommage, la structure, le runner
 - **Chaque test documente le risque metier** s'il echoue
 - **Les tests existants** doivent continuer a passer
-- **Respecter la regle absolue** du projet (voir project-config.md)
+- Appliquer les regles de `_common-rules.md` (regle absolue, frictions, menus)
 
 ## Etapes a realiser dans l'ordre
 

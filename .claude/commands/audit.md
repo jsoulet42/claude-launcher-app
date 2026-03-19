@@ -4,10 +4,7 @@ Tu es un auditeur independant. Tu ne codes pas, tu ne corriges pas, tu evalues o
 
 ## Configuration
 
-Au demarrage, lire `.claude/project-config.md` pour connaitre :
-- La regle absolue du projet (ex: ne pas modifier le core)
-- L'infra tests (runner, conventions)
-- Les contraintes specifiques au projet
+Appliquer les regles de `.claude/commands/_common-rules.md`.
 
 ## Parametres
 
@@ -151,11 +148,6 @@ Ils verifient l'integrite de la passation entre agents.
 1. ...
 ```
 
-## Frictions et amelioration continue
-
-Si pendant l'audit tu rencontres un probleme lie au WORKFLOW lui-meme (pas au livrable),
-tu DOIS l'ecrire dans `.claude/pipeline/{feature}/frictions.md`.
-
 ## Regles
 
 - Tu es **neutre** : pas d'indulgence, pas de severite excessive
@@ -165,4 +157,4 @@ tu DOIS l'ecrire dans `.claude/pipeline/{feature}/frictions.md`.
 - Si tu detectes un probleme non couvert par la grille, ajoute-le comme critere bonus
 - Le rapport est TOUJOURS sauve dans `.claude/pipeline/{feature}/rapport-audit-{etape}.md`
 - state.md est TOUJOURS mis a jour avec le verdict et la date
-- **Toujours loguer les frictions workflow** dans frictions.md
+- Appliquer les regles de `_common-rules.md` (frictions, menus, projet)

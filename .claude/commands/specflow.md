@@ -5,16 +5,9 @@ Tu guides l'utilisateur etape par etape, du brief initial jusqu'au deploiement.
 
 ## Configuration
 
+Appliquer les regles de `.claude/commands/_common-rules.md`.
+
 Au demarrage, chercher `.claude/project-config.md`.
-
-**Si le fichier existe** → le lire pour connaitre :
-- Le nom du projet et sa stack
-- Les modules/composants modifiables (pour les menus)
-- La regle absolue du projet (ex: ne pas modifier le core)
-- L'infra tests (runner, repertoire, conventions)
-- L'infra deploiement (serveurs, chemins)
-- Le workflow Git
-
 **Si le fichier n'existe pas** → lancer `/setup` automatiquement :
 ```
 Pas de configuration projet detectee.
@@ -71,43 +64,30 @@ C'est la **source de verite** pour tout le workflow.
 
 Le workflow s'adapte selon le champ `Tests → Statut` de project-config.md.
 
-### Mode complet (Tests : actif) — 9 etapes
+### Numerotation unique (toujours 9 etapes)
+
+La numerotation est TOUJOURS la meme. Si les tests sont desactives, les etapes 3 et 4
+sont marquees SKIP et sautees automatiquement. BUILD est toujours l'etape 5.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  /specflow — Pipeline {feature} (mode complet)           │
-├──────────────────────────────────────────────────────────┤
-│  1. SPECS       → spec-patron.md + spec-technique.md     │
-│  2. /audit specs → gate GO/NO-GO → rapport-audit-specs   │
-│  3. TDD         → agent-testeur → rapport-testeur        │
-│  4. /audit tests → gate GO/NO-GO → rapport-audit-tests   │
-│  5. BUILD       → agent-builder → rapport-builder        │
-│  6. /audit code  → gate GO/NO-GO → rapport-audit-code    │
-│  7. RECETTE     → dry-run/test → rapport-recette         │
-│  8. /audit recette → gate GO/NO-GO → rapport-audit-recette│
-│  9. DEPLOY      → commit, push, PR (merge par user)      │
-└──────────────────────────────────────────────────────────┘
-```
-
-### Mode sans tests (Tests : desactive) — 7 etapes
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  /specflow — Pipeline {feature} (mode sans tests)        │
-├──────────────────────────────────────────────────────────┤
-│  1. SPECS       → spec-patron.md + spec-technique.md     │
-│  2. /audit specs → gate GO/NO-GO → rapport-audit-specs   │
-│  3. BUILD       → agent-builder → rapport-builder        │
-│  4. /audit code  → gate GO/NO-GO → rapport-audit-code    │
-│  5. RECETTE     → dry-run/test → rapport-recette         │
-│  6. /audit recette → gate GO/NO-GO → rapport-audit-recette│
-│  7. DEPLOY      → commit, push, PR (merge par user)      │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  /specflow — Pipeline {feature}                              │
+├──────────────────────────────────────────────────────────────┤
+│  1. SPECS        → spec-patron.md + spec-technique.md        │
+│  2. /audit specs → gate GO/NO-GO                             │
+│  3. TDD          → agent-testeur         [SKIP si no tests]  │
+│  4. /audit tests → gate GO/NO-GO         [SKIP si no tests]  │
+│  5. BUILD        → agent-builder                             │
+│  6. /audit code  → gate GO/NO-GO                             │
+│  7. RECETTE      → dry-run/test                              │
+│  8. /audit recette → gate GO/NO-GO                           │
+│  9. DEPLOY       → commit, push, PR (merge par user)         │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 Au demarrage, lire `project-config.md → Tests → Statut` et afficher le mode :
 ```
-Mode workflow : {complet (9 etapes) | sans tests (7 etapes)}
+Mode : tests {actifs | desactives (etapes 3-4 SKIP)}
 ```
 
 Si le statut est `desactive`, proposer a chaque lancement :
@@ -167,22 +147,20 @@ Puis :
 
 ## Comportement a chaque etape
 
-### Pattern interaction OBLIGATOIRE
-
-**A chaque question ou decision :**
-- Menu dynamique numerote (1, 2, 3...)
-- Toujours une option reponse libre ("N. Autre : precisez")
-- Tag **[RECOMMENDED]** sur le choix le plus adapte, avec argumentation serieuse
-- Challenger l'utilisateur : pousser a la reflexion, ne pas juste valider
-- Ne jamais poser de questions ouvertes sans proposer de choix
-
 ### Affichage progression OBLIGATOIRE
 
 A chaque etape, afficher :
 ```
 ━━━ /specflow — {feature} ({module}) ━━━
-[████████░░░░░░░░░░] Etape 4/9 — /audit tests
-Gates : SPECS ✓ (87) | TESTS → en cours
+[██████░░░░░░░░░░░░] Etape 5/9 — BUILD
+Gates : SPECS ✓ (87) | TDD ✓ (92) | TESTS ✓ (90) | CODE → en cours
+```
+
+Si tests desactives, les etapes 3-4 s'affichent grisees :
+```
+━━━ /specflow — {feature} ({module}) ━━━
+[████░░░░░░░░░░░░░░] Etape 5/9 — BUILD
+Gates : SPECS ✓ (87) | TDD ⊘ | TESTS ⊘ | CODE → en cours
 ```
 
 ### Etape 1 — SPECS
@@ -214,9 +192,9 @@ Lancer `/audit specs {feature}`. Si NO-GO :
 - Relancer l'audit apres corrections
 - Ne JAMAIS passer a l'etape 3 sans GO
 
-### Etape 3 — TDD (mode complet uniquement)
+### Etape 3 — TDD [SKIP si tests desactives]
 
-> **Si Tests = desactive** : sauter cette etape et passer directement au BUILD.
+> **Si Tests = desactive** : afficher `Etape 3 — TDD [SKIP]` et passer a l'etape 5.
 
 Lancer l'agent-testeur en lui fournissant :
 - Le dossier pipeline : `.claude/pipeline/{feature}/`
@@ -235,9 +213,9 @@ Tests ecrits. Rapport testeur disponible. On passe a l'audit ?
 5. Autre : precisez
 ```
 
-### Etape 4 — /audit tests (mode complet uniquement)
+### Etape 4 — /audit tests [SKIP si tests desactives]
 
-> **Si Tests = desactive** : sauter cette etape.
+> **Si Tests = desactive** : afficher `Etape 4 — /audit tests [SKIP]` et passer a l'etape 5.
 
 Lancer `/audit tests {feature}`. Meme logique gate.
 
@@ -289,12 +267,7 @@ Appliquer le workflow Git de `project-config.md` → section Git.
 **Le merge est TOUJOURS fait par l'utilisateur.**
 Mettre a jour state.md : etape 9 = TERMINE.
 
-## Frictions et amelioration continue
-
-A chaque etape, si tu rencontres un probleme (info manquante, format ambigu, override utilisateur,
-contournement necessaire), tu DOIS l'ecrire dans `.claude/pipeline/{feature}/frictions.md`.
-
-Format : voir `/retro` pour le format complet.
+## Fin de pipeline
 
 Apres l'etape 9 (DEPLOY), proposer :
 ```

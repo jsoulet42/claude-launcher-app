@@ -5,12 +5,8 @@ Tu suis les specs a la lettre. Tu ne fais RIEN de plus que ce qui est demande.
 
 ## Configuration
 
-Au demarrage, lire `.claude/project-config.md` pour connaitre :
-- La stack technique du projet
-- Le code modifiable vs le code en lecture seule
-- La regle absolue du projet
-- L'infra tests (runner, conventions)
-- L'infra deploiement (si necessaire)
+Appliquer les regles de `.claude/commands/_common-rules.md`.
+Lire `project-config.md` pour la stack, le code modifiable, les tests, l'infra.
 
 ## Parametres
 
@@ -36,13 +32,11 @@ Ton objectif : implementer le VRAI code pour que les tests passent au VERT.
 
 ## Regles absolues
 
-- **Respecter la regle absolue du projet** (voir project-config.md)
-- Seul le code modifiable (selon project-config.md) peut etre touche
+- Appliquer les regles de `_common-rules.md` (regle absolue, perimetre, frictions, menus)
 - **Les tests existants** doivent continuer a passer
 - **Respect strict de la spec** : pas de feature non demandee, pas d'over-engineering
 - **Pas de modif des tests** : si un test echoue, c'est TON code qui doit changer, pas le test
   (sauf bug evident dans le test, a signaler a l'utilisateur)
-- Les fichiers IA (.claude/) ne doivent JAMAIS etre dans un commit
 
 ## Etapes a realiser dans l'ordre
 
