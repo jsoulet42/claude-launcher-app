@@ -48,7 +48,9 @@ Vous validez via menu dynamique, et c'est pret.
 │   ├── agent-builder.md               # TDD phase GREEN
 │   ├── retro.md                       # Amelioration continue
 │   ├── push.md                        # Git push
-│   └── project-config.template.md     # Template de config projet
+│   ├── project-config.template.md     # Template de config projet
+│   ├── _common-rules.md              # Regles partagees (menus, frictions, config)
+│   └── _scaffolds.md                 # Structures de dossiers par stack
 │
 ├── project-config.md                  # Config projet (le SEUL fichier a adapter)
 │
@@ -136,13 +138,14 @@ Chaque decision = menu numerote. Vous ne pouvez pas vous perdre.
 
 ## Comment ca marche (en detail)
 
-### 1. Lancer le workflow
+### 1. Menus dynamiques partout
 
-```
-/specflow
-```
+C'est la **regle #1** du workflow. Chaque question = menu numerote avec :
+- Un tag `[RECOMMENDED]` justifie sur le meilleur choix
+- Une option "Autre : precisez" pour garder la liberte
+- Des arguments pour challenger vos choix
 
-L'orchestrateur vous guide avec des menus numerotes et un tag `[RECOMMENDED]` sur le meilleur choix.
+Vous ne verrez jamais de question ouverte sans propositions.
 
 ### 2. Chaque etape produit un artefact
 
@@ -152,14 +155,27 @@ Chaque agent lit les artefacts de ses predecesseurs — rien ne se perd.
 ### 3. Les audits sont des gates
 
 Un seul FAIL = NO-GO. On ne passe pas a l'etape suivante sans GO.
-L'audit verifie la coherence de toute la chaine, pas juste le dernier livrable.
+L'audit verifie la coherence de **toute la chaine**, pas juste le dernier livrable.
 
-### 4. Les frictions alimentent l'amelioration
+### 4. Tests optionnels
+
+Pas de tests sur votre projet ? Pas de probleme. `/setup` le detecte et propose :
+- **Initialiser une infra de tests** → il cree le repertoire, le framework, un premier test
+- **Continuer sans tests** → les etapes TDD (3-4) sont automatiquement sautees (SKIP)
+
+La numerotation reste stable : BUILD = toujours etape 5, avec ou sans tests.
+
+```
+[████░░░░░░░░░░░░░░] Etape 5/9 — BUILD
+Gates : SPECS ✓ (87) | TDD ⊘ | TESTS ⊘ | CODE → en cours
+```
+
+### 5. Les frictions alimentent l'amelioration
 
 Chaque agent note ce qui ne marche pas bien. `/retro analyse` detecte les patterns
 recurrents et propose des corrections au workflow.
 
-### 5. Reprise entre sessions
+### 6. Reprise entre sessions
 
 Le fichier `state.md` persiste l'etat. Si vous fermez Claude Code et revenez demain,
 `/specflow` detecte le pipeline actif et propose de reprendre.
@@ -180,6 +196,7 @@ Le fichier `state.md` persiste l'etat. Si vous fermez Claude Code et revenez dem
 > Ne JAMAIS modifier le core Dolibarr.
 
 ## Tests
+- **Statut** : actif
 - **Framework** : PHPUnit
 - **Runner** : bash test.sh (alias estest)
 - **Principe d'isolation** : zero DB, logique pure, stubs
@@ -199,6 +216,7 @@ Le fichier `state.md` persiste l'etat. Si vous fermez Claude Code et revenez dem
 > Ne JAMAIS modifier les packages dans node_modules.
 
 ## Tests
+- **Statut** : actif
 - **Framework** : Jest + React Testing Library
 - **Runner** : npm test
 - **Principe d'isolation** : mocks pour les API externes, base SQLite en memoire
@@ -218,6 +236,7 @@ Le fichier `state.md` persiste l'etat. Si vous fermez Claude Code et revenez dem
 > Ne JAMAIS monkey-patcher le framework Django.
 
 ## Tests
+- **Statut** : actif
 - **Framework** : pytest + pytest-django
 - **Runner** : pytest
 - **Principe d'isolation** : fixtures, factory_boy, mock des services externes
@@ -237,6 +256,7 @@ Le fichier `state.md` persiste l'etat. Si vous fermez Claude Code et revenez dem
 > Ne JAMAIS modifier le code dans vendor/.
 
 ## Tests
+- **Statut** : actif
 - **Framework** : testing (standard library)
 - **Runner** : go test ./...
 - **Principe d'isolation** : interfaces + mocks, testcontainers pour integration
