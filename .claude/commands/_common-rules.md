@@ -10,72 +10,71 @@ Si le fichier n'existe pas, le signaler a l'utilisateur ou lancer `/setup`.
 
 ## Pattern interaction — REGLE #1 DU WORKFLOW
 
-**CHAQUE question, CHAQUE decision, CHAQUE transition entre etapes DOIT utiliser un menu dynamique.**
+**CHAQUE question, CHAQUE decision, CHAQUE transition entre etapes DOIT utiliser l'outil `AskUserQuestion`.**
 Il n'existe AUCUNE exception. C'est la clef de l'experience utilisateur.
 
-### Format obligatoire
+### Pourquoi AskUserQuestion ?
 
-```
-{Question claire et courte}
+L'outil `AskUserQuestion` genere un **vrai menu interactif** avec selection par fleches directionnelles.
+L'utilisateur navigue avec ↑↓ et valide avec Entree. C'est infiniment plus agreable qu'un menu texte brut
+ou l'utilisateur doit taper un numero.
 
-1. {Option A} [RECOMMENDED — {justification en 1 ligne}]
-2. {Option B}
-3. {Option C}
-4. Autre : precisez
-```
+**JAMAIS de menu en texte brut.** Toujours `AskUserQuestion`.
 
-### Regles du menu
+### Regles de l'outil
 
-1. **Numerote** : chaque option a un numero (1, 2, 3...)
-2. **[RECOMMENDED]** : TOUJOURS present sur exactement 1 option, avec une justification serieuse et argumentee. Le tag doit etre sur la MEME ligne que l'option.
-3. **Option libre** : la DERNIERE option est TOUJOURS "Autre : precisez"
-4. **Challenger** : ne pas juste valider ce que l'utilisateur dit — pousser a la reflexion, proposer des alternatives qu'il n'a peut-etre pas envisagees
-5. **Jamais de question ouverte** : si tu as envie d'ecrire "Que veux-tu faire ?", transforme-le en menu avec des choix concrets
+1. **2 a 4 options** : l'outil accepte entre 2 et 4 options. Si tu as plus de 4 choix, regroupe-les ou fais 2 questions
+2. **[RECOMMENDED] = premiere option** : l'option recommandee doit etre la PREMIERE de la liste, avec `(Recommended)` a la fin du label
+3. **Label court** (1-5 mots) + **description** qui explique et justifie
+4. **"Autre" est automatique** : l'outil ajoute toujours une option "Other" — ne PAS l'inclure dans tes options
+5. **Header court** (max 12 chars) : un tag qui resume le contexte (ex: "Specs", "Recette", "Tests")
+6. **Challenger** : proposer des alternatives que l'utilisateur n'a peut-etre pas envisagees
 
-### Criteres du tag [RECOMMENDED]
+### Criteres du choix Recommended
 
-Le choix [RECOMMENDED] doit etre :
+Le choix recommande doit etre :
 - Le plus adapte au **contexte actuel** du projet (pas generique)
-- Justifie par une raison **concrete** (pas "c'est mieux")
+- Justifie dans la **description** par une raison **concrete** (pas "c'est mieux")
 - Coherent avec `project-config.md` et les decisions precedentes du pipeline
-- Change selon le contexte : le meme menu peut avoir un [RECOMMENDED] different selon la feature
+- Dynamique : le meme menu peut avoir un recommended different selon la feature
 
-### Exemples
+### Exemple concret
 
-**BON** :
+```json
+{
+  "questions": [{
+    "question": "Comment on recette cette feature ?",
+    "header": "Recette",
+    "options": [
+      {
+        "label": "Dry-run sur prod (Recommended)",
+        "description": "Un script de rattrapage existe, il faut le valider avant application reelle"
+      },
+      {
+        "label": "Deployer sur test d'abord",
+        "description": "Serveur test disponible mais donnees limitees — risque de ne pas tout voir"
+      },
+      {
+        "label": "Direct sur prod",
+        "description": "Plus rapide mais pas de filet de securite"
+      },
+      {
+        "label": "Test manuel interface",
+        "description": "Verifier visuellement dans le navigateur sans script"
+      }
+    ],
+    "multiSelect": false
+  }]
+}
 ```
-Comment on recette cette feature ?
 
-1. Dry-run du script de rattrapage sur prod [RECOMMENDED — un script de rattrapage existe, il faut le valider avant application]
-2. Deploiement sur serveur test d'abord
-3. Deploiement direct sur prod
-4. Test manuel dans l'interface
-5. Autre : precisez
-```
+### Ce qui est INTERDIT
 
-**MAUVAIS** (question ouverte) :
-```
-Comment tu veux proceder pour la recette ?
-```
-
-**MAUVAIS** (pas de [RECOMMENDED]) :
-```
-1. Dry-run sur prod
-2. Deploiement sur test
-3. Direct sur prod
-```
-
-**MAUVAIS** ([RECOMMENDED] sans justification) :
-```
-1. Dry-run sur prod [RECOMMENDED]
-2. Deploiement sur test
-```
-
-**MAUVAIS** (pas d'option libre) :
-```
-1. Dry-run sur prod [RECOMMENDED — script existe]
-2. Deploiement sur test
-```
+- Afficher un menu en texte brut (1. ... 2. ... 3. ...)
+- Poser une question ouverte sans proposer de choix
+- Mettre plus de 4 options (regrouper ou faire 2 questions)
+- Oublier le tag (Recommended) sur la premiere option
+- Mettre une option "Autre" dans la liste (c'est automatique)
 
 ## Frictions
 
