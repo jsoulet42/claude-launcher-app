@@ -28,6 +28,9 @@ function Protect-WtArgument {
 
     $escaped = $Value -replace '"', '\"'
     $escaped = $escaped -replace '`', '``'
+    if ($escaped -ne $Value) {
+        Write-Log -Level 'DEBUG' -Source 'WtBuilder' -Message "Escaped WT argument: '$Value' -> '$escaped'"
+    }
     return $escaped
 }
 
@@ -59,16 +62,19 @@ function Build-WtPanel {
 
     # Chemin obligatoire
     if ([string]::IsNullOrWhiteSpace($Project.path)) {
+        Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "Invalid panel config: project '$slug' has no path"
         throw "Le projet '$slug' n'a pas de chemin (path) configure"
     }
 
     # Chemin absolu Windows
     if ($Project.path -notmatch '^[A-Za-z]:\\') {
+        Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "Invalid panel config: project '$slug' path is not absolute: '$($Project.path)'"
         throw "Le projet '$slug' a un chemin invalide : '$($Project.path)'. Un chemin absolu Windows est requis (ex: C:\mon\projet)"
     }
 
     # Pas de traversal
     if ($Project.path -match '\.\.') {
+        Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "Invalid panel config: project '$slug' path contains '..'"
         throw "Le projet '$slug' contient '..' dans son chemin. Les chemins doivent etre canoniques."
     }
 
@@ -130,6 +136,7 @@ function Build-WtPanel {
     } elseif ($SplitDirection -match '^[HV]$') {
         $direction = $SplitDirection
     } else {
+        Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "Invalid split direction: '$SplitDirection'"
         throw "Le split '$SplitDirection' n'est pas reconnu. Formats acceptes : H, V, H(xx%), V(xx%), focus-N"
     }
 
@@ -158,10 +165,12 @@ function Build-WtCommand {
     )
 
     $panels = $Preset.panels
+    Write-Log -Level 'INFO' -Source 'WtBuilder' -Message "Building WT command for preset '$($Preset.name)' ($($panels.Count) panels)"
 
     # --- Validation : {{auto}} non resolu ---
     for ($i = 0; $i -lt $panels.Count; $i++) {
         if ($panels[$i].project -eq '{{auto}}') {
+            Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "Panel $i has unresolved {{auto}}"
             throw "Le panneau $i contient '{{auto}}' non resolu. Le caller doit resoudre les {{auto}} avant d'appeler Build-WtCommand"
         }
     }
@@ -170,6 +179,7 @@ function Build-WtCommand {
     $expectedCount = Get-LayoutPanelCount -Layout $Layout
     $actualCount = $panels.Count
     if ($actualCount -ne $expectedCount) {
+        Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "Panel count mismatch: preset has $actualCount, layout expects $expectedCount"
         throw "Le preset attend $actualCount panneaux mais le layout en supporte $expectedCount"
     }
 
@@ -177,6 +187,7 @@ function Build-WtCommand {
     for ($i = 0; $i -lt $panels.Count; $i++) {
         $slug = $panels[$i].project
         if (-not $Projects.ContainsKey($slug)) {
+            Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "Panel $i references unknown project '$slug'"
             throw "Le panneau $i reference le projet '$slug' qui n'existe pas"
         }
     }
@@ -204,6 +215,7 @@ function Build-WtCommand {
         } else {
             # Split reel — consommer le panneau suivant
             if ($panelIndex -ge $panels.Count) {
+                Write-Log -Level 'ERROR' -Source 'WtBuilder' -Message "No more panels for split '$split' (index $panelIndex >= $($panels.Count))"
                 throw "Plus de panneaux disponibles pour le split '$split'"
             }
 
@@ -216,5 +228,7 @@ function Build-WtCommand {
     }
 
     # --- Assemblage final ---
-    return "wt.exe " + ($fragments -join ' ; ')
+    $wtCommand = "wt.exe " + ($fragments -join ' ; ')
+    Write-Log -Level 'DEBUG' -Source 'WtBuilder' -Message "WT command: $wtCommand"
+    return $wtCommand
 }

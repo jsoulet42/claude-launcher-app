@@ -50,6 +50,8 @@ function Set-TuiThemeDark {
     [CmdletBinding()]
     param()
 
+    try {
+
     # Scheme Base (fond noir, texte gris clair — sobre et moderne)
     $baseScheme = New-TuiColorScheme `
         -NormalFg 'Gray' -NormalBg 'Black' `
@@ -79,10 +81,16 @@ function Set-TuiThemeDark {
         -HotFocusFg 'Black' -HotFocusBg 'BrightGreen'
 
     # Retourner les schemes pour utilisation dans le layout
+    Write-Log -Level 'DEBUG' -Source 'Theme' -Message "Dark theme applied"
     return @{
         Base    = $baseScheme
         Header  = $headerScheme
         Footer  = $footerScheme
         Sidebar = $sidebarScheme
+    }
+
+    } catch {
+        Write-LogError -Source 'Theme' -Message "Failed to apply theme" -ErrorRecord $_
+        throw
     }
 }
