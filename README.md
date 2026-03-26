@@ -13,14 +13,21 @@ Les frictions sont collectees automatiquement pour ameliorer le workflow en cont
 
 ## Installation
 
-1. Copier le dossier `.claude/` a la racine de votre projet
-2. Lancer `/setup` ou `/specflow` dans Claude Code — la configuration se fait automatiquement
+Cloner ce repo puis copier le dossier `.claude/` a la racine de votre projet :
+
+```bash
+git clone https://github.com/votre-user/claude-launcher.git
+cp -r claude-launcher/.claude/ /chemin/vers/votre-projet/.claude/
+```
+
+Ou directement depuis le repo :
 
 ```bash
 cp -r .claude/ /chemin/vers/votre-projet/.claude/
 ```
 
-C'est tout. Au premier lancement, `/setup` analyse votre projet (package.json, composer.json, go.mod, etc.),
+Puis lancer `/setup` ou `/specflow` dans Claude Code — la configuration se fait automatiquement.
+`/setup` analyse votre projet (package.json, composer.json, go.mod, etc.),
 detecte la stack, les tests, la structure, et propose un `project-config.md` pre-rempli.
 Vous validez via menu dynamique, et c'est pret.
 
