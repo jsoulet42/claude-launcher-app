@@ -26,6 +26,11 @@ param(
     [switch]$Init
 )
 
+# --- Logger (PREMIER import — avant tout autre module) ---
+. "$PSScriptRoot\lib\TUI\Logger.ps1"
+Initialize-Logger -LogDir (Join-Path $PSScriptRoot 'logs')
+Write-Log -Level 'INFO' -Source 'Launcher' -Message "Claude Launcher started (args: $Preset)"
+
 # --- Imports ---
 . "$PSScriptRoot\lib\Config\ConfigSchema.ps1"
 . "$PSScriptRoot\lib\Config\ConfigLoader.ps1"
@@ -108,6 +113,7 @@ if ($Init) {
         Write-Host "Editez ce fichier pour ajouter vos projets et presets."
         exit 0
     } catch {
+        Write-LogError -Source 'Launcher' -Message "Init failed" -ErrorRecord $_
         Write-LauncherError $_.Exception.Message
         exit 1
     }
@@ -118,17 +124,24 @@ $config = $null
 try {
     $config = Import-LauncherConfig -Path $ConfigPath
 } catch {
+    Write-LogError -Source 'Launcher' -Message "Config load failed" -ErrorRecord $_
     Write-LauncherError $_.Exception.Message
     exit 1
 }
 
 # 2. Mode TUI
 if ($Preset -eq 'tui') {
-    . "$PSScriptRoot\lib\TUI\DepsManager.ps1"
-    . "$PSScriptRoot\lib\TUI\Theme.ps1"
-    . "$PSScriptRoot\lib\TUI\ProjectList.ps1"
-    . "$PSScriptRoot\lib\TUI\App.ps1"
-    Start-LauncherTui -Config $config
+    try {
+        . "$PSScriptRoot\lib\TUI\DepsManager.ps1"
+        . "$PSScriptRoot\lib\TUI\Theme.ps1"
+        . "$PSScriptRoot\lib\TUI\ProjectList.ps1"
+        . "$PSScriptRoot\lib\TUI\App.ps1"
+        Start-LauncherTui -Config $config
+    } catch {
+        Write-LogError -Source 'Launcher' -Message "TUI crashed" -ErrorRecord $_
+        Write-Host "ERREUR TUI: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host "Details dans logs/launcher.log" -ForegroundColor Yellow
+    }
     exit 0
 }
 
@@ -189,6 +202,7 @@ if ($WhatIf) {
         Write-Host ""
         Write-Host "(dry-run, pas de lancement)" -ForegroundColor Yellow
     } catch {
+        Write-LogError -Source 'Launcher' -Message "WhatIf failed" -ErrorRecord $_
         Write-LauncherError $_.Exception.Message
         exit 1
     }
@@ -203,6 +217,7 @@ try {
     Write-LauncherSuccess "Lancement..."
     exit 0
 } catch {
+    Write-LogError -Source 'Launcher' -Message "Launch failed" -ErrorRecord $_
     Write-LauncherError $_.Exception.Message
     exit 1
 }

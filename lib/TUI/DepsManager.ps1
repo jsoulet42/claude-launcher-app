@@ -38,6 +38,7 @@ function Install-TuiDependency {
 
     # Anti path-traversal
     if (-not $depsDir.StartsWith($projectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Write-Log -Level 'ERROR' -Source 'DepsManager' -Message "Path traversal detected: $depsDir"
         throw "Chemin deps invalide : tentative de path-traversal detectee."
     }
 
@@ -46,16 +47,20 @@ function Install-TuiDependency {
     foreach ($dep in $script:Dependencies) {
         $dllPath = Join-Path $depsDir $dep.FileName
 
+        Write-Log -Level 'INFO' -Source 'DepsManager' -Message "Checking $($dep.Name)..."
+
         # 2. Si le fichier existe deja, verifier le hash
         if (Test-Path $dllPath) {
             $actualHash = (Get-FileHash -Path $dllPath -Algorithm SHA256).Hash
 
             if ($actualHash -eq $dep.Hash) {
                 Write-Verbose "$($dep.FileName) deja presente, hash verifie."
+                Write-Log -Level 'DEBUG' -Source 'DepsManager' -Message "$($dep.Name) already installed (hash OK)"
                 $dllPaths += $dllPath
                 continue
             } else {
                 Write-Warning "Hash $($dep.FileName) invalide (attendu: $($dep.Hash.Substring(0,16))..., obtenu: $($actualHash.Substring(0,16))...). Re-telechargement..."
+                Write-Log -Level 'WARN' -Source 'DepsManager' -Message "Hash $($dep.FileName) invalide, re-telechargement"
                 Remove-Item $dllPath -Force
             }
         }
@@ -71,9 +76,11 @@ function Install-TuiDependency {
         $extractDir = Join-Path $depsDir "_extract_$($dep.Name.ToLower())"
 
         try {
+            Write-Log -Level 'INFO' -Source 'DepsManager' -Message "Downloading $($dep.Name) from $($dep.NuGetUrl)"
             Invoke-WebRequest -Uri $dep.NuGetUrl -OutFile $nupkgPath -TimeoutSec 60 -UseBasicParsing
 
             if (-not (Test-Path $nupkgPath)) {
+                Write-Log -Level 'ERROR' -Source 'DepsManager' -Message "Download failed: $($dep.Name) nupkg not found"
                 throw "Le telechargement de $($dep.Name) a echoue : fichier nupkg introuvable."
             }
 
@@ -87,6 +94,7 @@ function Install-TuiDependency {
             $sourceDll = Join-Path $extractDir ($nugetPathParts -join [System.IO.Path]::DirectorySeparatorChar)
 
             if (-not (Test-Path $sourceDll)) {
+                Write-Log -Level 'ERROR' -Source 'DepsManager' -Message "$($dep.FileName) not found in NuGet package at $($dep.NuGetPath)"
                 throw "$($dep.FileName) introuvable dans le package NuGet (chemin attendu : $($dep.NuGetPath))."
             }
 
@@ -97,17 +105,26 @@ function Install-TuiDependency {
 
             if ($actualHash -ne $dep.Hash) {
                 Remove-Item $dllPath -Force
+                Write-Log -Level 'ERROR' -Source 'DepsManager' -Message "Hash verification failed for $($dep.FileName): expected $($dep.Hash), got $actualHash"
                 throw "Hash $($dep.FileName) invalide. Telechargement potentiellement compromis. Hash attendu : $($dep.Hash), obtenu : $actualHash"
             }
 
             Write-Host "$($dep.Name) installe." -ForegroundColor Green
+            Write-Log -Level 'INFO' -Source 'DepsManager' -Message "$($dep.Name) installed successfully"
 
+        } catch {
+            Write-LogError -Source 'DepsManager' -Message "Failed to download $($dep.Name)" -ErrorRecord $_
+            throw
         } finally {
-            if (Test-Path $nupkgPath) {
-                Remove-Item $nupkgPath -Force -ErrorAction SilentlyContinue
+            try {
+                if (Test-Path $nupkgPath) { Remove-Item $nupkgPath -Force -ErrorAction Stop }
+            } catch {
+                Write-Log -Level 'DEBUG' -Source 'DepsManager' -Message "Cleanup failed for $nupkgPath (non-blocking)"
             }
-            if (Test-Path $extractDir) {
-                Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+            try {
+                if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force -ErrorAction Stop }
+            } catch {
+                Write-Log -Level 'DEBUG' -Source 'DepsManager' -Message "Cleanup failed for $extractDir (non-blocking)"
             }
         }
 

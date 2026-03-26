@@ -17,8 +17,11 @@ function Import-LauncherConfig {
         [string]$Path = '.\config.json'
     )
 
+    Write-Log -Level 'INFO' -Source 'Config' -Message "Loading config from $Path"
+
     # Si le fichier n'existe pas, creer un config par defaut
     if (-not (Test-Path $Path)) {
+        Write-Log -Level 'WARN' -Source 'Config' -Message "Config file not found at $Path, creating default"
         Write-Host "Pas de config.json trouve. Creation d'une config par defaut..." -ForegroundColor Yellow
         return New-LauncherConfig -Path $Path
     }
@@ -28,6 +31,7 @@ function Import-LauncherConfig {
     try {
         $raw = Get-Content -Path $Path -Raw -Encoding UTF8
     } catch {
+        Write-Log -Level 'ERROR' -Source 'Config' -Message "Cannot read config file: $Path" -ErrorRecord $_
         throw "Impossible de lire le fichier config : $Path`n$($_.Exception.Message)"
     }
 
@@ -35,15 +39,18 @@ function Import-LauncherConfig {
     try {
         $config = $raw | ConvertFrom-Json -Depth 10 -AsHashtable
     } catch {
+        Write-Log -Level 'ERROR' -Source 'Config' -Message "Invalid JSON in $Path" -ErrorRecord $_
         throw "JSON invalide dans $Path`n$($_.Exception.Message)"
     }
 
     # Valider la version
     $version = $config['version']
     if (-not $version) {
+        Write-Log -Level 'ERROR' -Source 'Config' -Message "Missing 'version' field in config.json"
         throw "Champ 'version' manquant dans config.json. Ajoutez : `"version`": `"1.0`""
     }
     if ($version -ne '1.0') {
+        Write-Log -Level 'ERROR' -Source 'Config' -Message "Unsupported config version: $version"
         throw "Version de config '$version' non supportee. Version actuelle : 1.0"
     }
 
@@ -147,6 +154,7 @@ function Import-LauncherConfig {
     # Afficher les warnings
     foreach ($warning in $warnings) {
         Write-Warning $warning
+        Write-Log -Level 'WARN' -Source 'Config' -Message $warning
     }
 
     # Erreurs bloquantes
@@ -155,9 +163,11 @@ function Import-LauncherConfig {
         foreach ($err in $errors) {
             $errorMsg += "  - $err`n"
         }
+        Write-Log -Level 'ERROR' -Source 'Config' -Message "Validation failed: $($errors.Count) errors"
         throw $errorMsg
     }
 
+    Write-Log -Level 'INFO' -Source 'Config' -Message "Config loaded: $($config.projects.Count) projects, $($config.presets.Count) presets"
     return $config
 }
 

@@ -88,7 +88,9 @@ function Merge-ConfigDefaults {
         # Valider enum theme
         $validThemes = @('dark', 'light', 'custom')
         if ($Config.preferences.ContainsKey('theme') -and $Config.preferences.theme -notin $validThemes) {
-            Write-Warning "Theme '$($Config.preferences.theme)' invalide. Valeurs acceptees : $($validThemes -join ', '). Utilisation de 'dark' par defaut."
+            $themeMsg = "Theme '$($Config.preferences.theme)' invalide. Valeurs acceptees : $($validThemes -join ', '). Utilisation de 'dark' par defaut."
+            Write-Warning $themeMsg
+            Write-Log -Level 'WARN' -Source 'ConfigSchema' -Message $themeMsg
             $Config.preferences.theme = 'dark'
         }
         # Daemon sub-object

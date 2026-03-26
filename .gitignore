@@ -7,5 +7,8 @@ ROADMAP.md
 # Dependances binaires (DLL Terminal.Gui auto-telechargee)
 deps/
 
+# Logs (fichiers de debug runtime)
+logs/
+
 # Config utilisateur (contient des chemins locaux)
 config.json

@@ -20,17 +20,25 @@ function Get-ProjectGitInfo {
     }
 
     try {
-        $isGit = git -C $Path rev-parse --is-inside-work-tree 2>$null
-        if ($isGit -ne 'true') {
+        $isGitResult = git -C $Path rev-parse --is-inside-work-tree 2>&1
+        if ($isGitResult -is [System.Management.Automation.ErrorRecord]) {
+            Write-Log -Level 'WARN' -Source 'ProjectList' -Message "Git check failed for $Path`: $($isGitResult.Exception.Message)"
+            return @{ Exists = $true; IsGit = $false; Branch = ''; DirtyCount = 0; IsDirty = $false }
+        }
+        if ($isGitResult -ne 'true') {
             return @{ Exists = $true; IsGit = $false; Branch = ''; DirtyCount = 0; IsDirty = $false }
         }
 
-        $branch = git -C $Path rev-parse --abbrev-ref HEAD 2>$null
+        $branch = git -C $Path rev-parse --abbrev-ref HEAD 2>&1
+        if ($branch -is [System.Management.Automation.ErrorRecord]) {
+            Write-Log -Level 'WARN' -Source 'ProjectList' -Message "Git branch failed for $Path"
+            $branch = '(unknown)'
+        }
         if (-not $branch) { $branch = '(detached)' }
 
-        $porcelain = git -C $Path status --porcelain 2>$null
+        $porcelain = git -C $Path status --porcelain 2>&1
         $dirtyCount = 0
-        if ($porcelain) {
+        if ($porcelain -and $porcelain -isnot [System.Management.Automation.ErrorRecord]) {
             $dirtyCount = ($porcelain -split "`n" | Where-Object { $_.Trim() -ne '' }).Count
         }
 
@@ -42,6 +50,7 @@ function Get-ProjectGitInfo {
             IsDirty    = ($dirtyCount -gt 0)
         }
     } catch {
+        Write-Log -Level 'WARN' -Source 'ProjectList' -Message "Git failed for $Path" -ErrorRecord $_
         return @{ Exists = $true; IsGit = $false; Branch = ''; DirtyCount = 0; IsDirty = $false }
     }
 }
@@ -102,10 +111,13 @@ function New-ProjectListView {
     }
 
     # Variables capturees pour les closures
+    # IMPORTANT : capturer Write-Log car les fonctions ne sont PAS visibles
+    # depuis les scriptblocks .GetNewClosure() dans les event handlers Terminal.Gui
     $capturedBody = $BodyView
     $capturedProjArray = $projectsArray.ToArray()
     $capturedConfig = $Config
     $capturedLV = $listView
+    $capturedLogFn = ${function:Write-Log}
 
     # Scriptblock inline pour mettre a jour le body
     # GetNewClosure() capture les variables locales du scope courant
@@ -117,6 +129,8 @@ function New-ProjectListView {
         $proj = $entry.Project
         $gi = $entry.GitInfo
         $slug = $entry.Slug
+
+        & $capturedLogFn -Level 'DEBUG' -Source 'ProjectList' -Message "Selected: $($proj.name)"
 
         $capturedBody.RemoveAll()
 
@@ -177,15 +191,15 @@ function New-ProjectListView {
         $capturedBody.SetNeedsDisplay()
     }.GetNewClosure()
 
-    $listView.add_SelectedItemChanged({
+    $listView.add_SelectedItemChanged((Protect-EventHandler -Source 'ProjectList' -Handler {
         param($sender, $e)
         & $updateBody
-    }.GetNewClosure())
+    }.GetNewClosure()))
 
-    $listView.add_OpenSelectedItem({
+    $listView.add_OpenSelectedItem((Protect-EventHandler -Source 'ProjectList' -Handler {
         param($sender, $e)
         & $updateBody
-    }.GetNewClosure())
+    }.GetNewClosure()))
 
     return @{
         ListView = $listView

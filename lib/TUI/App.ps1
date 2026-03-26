@@ -135,7 +135,7 @@ function Register-TuiKeybindings {
     # Enregistrer les raccourcis clavier sur la fenetre principale
     # Note : on utilise KeyValue (int) au lieu de Key enum car PowerShell
     # ne gere pas les membres qui different uniquement par la casse (Q vs q).
-    $Window.add_KeyPress({
+    $Window.add_KeyPress((Protect-EventHandler -Source 'Keybindings' -Handler {
         param($keyEvent)
 
         $keyValue = $keyEvent.KeyEvent.KeyValue
@@ -159,7 +159,7 @@ function Register-TuiKeybindings {
             [Terminal.Gui.MessageBox]::Query("Raccourcis", $helpText, $buttons) | Out-Null
             $keyEvent.Handled = $true
         }
-    })
+    }.GetNewClosure()))
 }
 
 function Start-LauncherTui {
@@ -178,6 +178,7 @@ function Start-LauncherTui {
     Import-TuiAssembly
 
     # 2. Initialiser, construire, lancer avec try/finally
+    Write-Log -Level 'INFO' -Source 'App' -Message "TUI starting with $($Config.projects.Count) projects"
     $initialized = $false
     try {
         [Terminal.Gui.Application]::Init()
@@ -202,5 +203,6 @@ function Start-LauncherTui {
             # Nettoyer le SynchronizationContext pour eviter les deadlocks
             [System.Threading.SynchronizationContext]::SetSynchronizationContext($null)
         }
+        Write-Log -Level 'INFO' -Source 'App' -Message "TUI shutdown"
     }
 }
