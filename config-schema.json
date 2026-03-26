@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "claude-launcher-config",
+  "title": "Claude Launcher Configuration",
+  "description": "Configuration pour Claude Launcher — workspaces multi-terminaux Windows Terminal",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference au schema JSON pour intellisense"
+    },
+    "version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "Version du schema de configuration"
+    },
+    "preferences": {
+      "$ref": "#/$defs/Preferences"
+    },
+    "projects": {
+      "type": "object",
+      "description": "Projets declares, chaque cle est un slug kebab-case",
+      "patternProperties": {
+        "^[a-z0-9]+(-[a-z0-9]+)*$": {
+          "$ref": "#/$defs/Project"
+        }
+      },
+      "additionalProperties": false
+    },
+    "presets": {
+      "type": "object",
+      "description": "Presets de workspace, chaque cle est un slug kebab-case",
+      "patternProperties": {
+        "^[a-z0-9]+(-[a-z0-9]+)*$": {
+          "$ref": "#/$defs/Preset"
+        }
+      },
+      "additionalProperties": false
+    },
+    "layouts": {
+      "type": "object",
+      "description": "Layouts de panneaux, chaque cle est un slug kebab-case",
+      "patternProperties": {
+        "^[a-z0-9]+(-[a-z0-9]+)*$": {
+          "$ref": "#/$defs/Layout"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "Preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "theme": {
+          "type": "string",
+          "enum": ["dark", "light", "custom"],
+          "default": "dark",
+          "description": "Theme du TUI"
+        },
+        "default_preset": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Nom du preset lance par defaut (null = afficher le menu)"
+        },
+        "auto_discover_projects": {
+          "type": "boolean",
+          "default": false,
+          "description": "Scanner automatiquement les dossiers pour trouver des projets git"
+        },
+        "scan_directories": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Dossiers a scanner pour trouver des projets git"
+        },
+        "daemon": {
+          "$ref": "#/$defs/DaemonConfig"
+        }
+      }
+    },
+    "DaemonConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Activer le daemon de surveillance"
+        },
+        "watch_interval_ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 60000,
+          "default": 5000,
+          "description": "Intervalle de check du daemon en millisecondes"
+        },
+        "notify_on_wait": {
+          "type": "boolean",
+          "default": true,
+          "description": "Notifier quand Claude Code attend une reponse"
+        }
+      }
+    },
+    "Project": {
+      "type": "object",
+      "required": ["name", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nom affiche dans le TUI"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^[A-Za-z]:[\\\\|/]",
+          "description": "Chemin Windows absolu vers le projet"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "default": "#808080",
+          "description": "Code couleur hex (#rrggbb)"
+        },
+        "icon": {
+          "type": "string",
+          "default": "\ud83d\udcc1",
+          "description": "Emoji ou caractere unicode"
+        },
+        "default_command": {
+          "type": "string",
+          "default": "claude",
+          "description": "Commande lancee dans le panneau"
+        },
+        "initial_command": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Texte injecte dans le terminal apres lancement"
+        }
+      }
+    },
+    "Preset": {
+      "type": "object",
+      "required": ["name", "layout", "panels"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Nom affiche"
+        },
+        "description": {
+          "type": "string",
+          "default": "",
+          "description": "Description courte"
+        },
+        "layout": {
+          "type": "string",
+          "description": "Reference a un layout (cle de la section layouts)"
+        },
+        "panels": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Panel" },
+          "minItems": 1,
+          "maxItems": 6,
+          "description": "Liste des panneaux du preset"
+        }
+      }
+    },
+    "Panel": {
+      "type": "object",
+      "required": ["project"],
+      "additionalProperties": false,
+      "properties": {
+        "project": {
+          "type": "string",
+          "description": "Slug du projet ou '{{auto}}' pour selection dynamique"
+        },
+        "command": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Override de la commande (null = utiliser project.default_command)"
+        },
+        "initial_command": {
+          "type": ["string", "null"],
+          "default": null,
+          "description": "Override de la commande initiale (null = utiliser project.initial_command)"
+        }
+      }
+    },
+    "Layout": {
+      "type": "object",
+      "required": ["splits"],
+      "additionalProperties": false,
+      "properties": {
+        "splits": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(H|V)(\\([0-9]{1,2}%\\))?$|^focus-[0-9]+$"
+          },
+          "description": "Sequence de splits : H, V, H(70%), V(30%), focus-N"
+        }
+      }
+    }
+  }
+}
