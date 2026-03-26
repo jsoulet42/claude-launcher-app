@@ -1,2 +1,5 @@
-# Claude Code — pipeline, specs, config interne
+# Claude Code — fichiers IA exclus du repo
 .claude/
+CLAUDE.md
+BRIEF.md
+ROADMAP.md
