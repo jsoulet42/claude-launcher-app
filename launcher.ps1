@@ -101,6 +101,15 @@ function Resolve-AutoPanels {
 
 # --- Main ---
 
+# 0. Mode TUI
+if ($Preset -eq 'tui') {
+    . "$PSScriptRoot\lib\TUI\DepsManager.ps1"
+    . "$PSScriptRoot\lib\TUI\Theme.ps1"
+    . "$PSScriptRoot\lib\TUI\App.ps1"
+    Start-LauncherTui -Config $config
+    exit 0
+}
+
 # 1. Mode Init
 if ($Init) {
     try {

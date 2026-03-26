@@ -4,5 +4,8 @@ CLAUDE.md
 BRIEF.md
 ROADMAP.md
 
+# Dependances binaires (DLL Terminal.Gui auto-telechargee)
+deps/
+
 # Config utilisateur (contient des chemins locaux)
 config.json
