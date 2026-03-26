@@ -101,16 +101,7 @@ function Resolve-AutoPanels {
 
 # --- Main ---
 
-# 0. Mode TUI
-if ($Preset -eq 'tui') {
-    . "$PSScriptRoot\lib\TUI\DepsManager.ps1"
-    . "$PSScriptRoot\lib\TUI\Theme.ps1"
-    . "$PSScriptRoot\lib\TUI\App.ps1"
-    Start-LauncherTui -Config $config
-    exit 0
-}
-
-# 1. Mode Init
+# 0. Mode Init (avant chargement config)
 if ($Init) {
     try {
         $null = New-LauncherConfig -Path $ConfigPath
@@ -122,13 +113,23 @@ if ($Init) {
     }
 }
 
-# 2. Charger config
+# 1. Charger config
 $config = $null
 try {
     $config = Import-LauncherConfig -Path $ConfigPath
 } catch {
     Write-LauncherError $_.Exception.Message
     exit 1
+}
+
+# 2. Mode TUI
+if ($Preset -eq 'tui') {
+    . "$PSScriptRoot\lib\TUI\DepsManager.ps1"
+    . "$PSScriptRoot\lib\TUI\Theme.ps1"
+    . "$PSScriptRoot\lib\TUI\ProjectList.ps1"
+    . "$PSScriptRoot\lib\TUI\App.ps1"
+    Start-LauncherTui -Config $config
+    exit 0
 }
 
 # 3. Resoudre le preset

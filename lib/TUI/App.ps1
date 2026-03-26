@@ -11,7 +11,8 @@ function New-TuiLayout {
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
-        [hashtable]$Themes
+        [hashtable]$Themes,
+        [hashtable]$Config
     )
 
     # --- Fenetre racine (sans bordure pour un look moderne) ---
@@ -55,12 +56,8 @@ function New-TuiLayout {
         $sidebar.ColorScheme = $Themes.Sidebar
     }
 
-    $sidebarLabel = [Terminal.Gui.Label]::new("(aucun projet)")
-    $sidebarLabel.X = 1
-    $sidebarLabel.Y = 1
-    $sidebar.Add($sidebarLabel)
-
     # --- Body (View sans cadre — zone principale ouverte) ---
+    # Cree avant le contenu sidebar car ProjectListView a besoin de $body
     $body = [Terminal.Gui.View]::new()
     $body.X = [Terminal.Gui.Pos]::Right($sidebar)
     $body.Y = 1
@@ -80,6 +77,18 @@ function New-TuiLayout {
     $bodyLabel.X = 2
     $bodyLabel.Y = 2
     $body.Add($bodyLabel)
+
+    # --- Contenu sidebar (apres body pour la reference) ---
+    $projectList = $null
+    if ($Config -and $Config.projects -and $Config.projects.Count -gt 0) {
+        $projectList = New-ProjectListView -Config $Config -BodyView $body -Themes $Themes
+        $sidebar.Add($projectList.ListView)
+    } else {
+        $sidebarLabel = [Terminal.Gui.Label]::new("(aucun projet)")
+        $sidebarLabel.X = 1
+        $sidebarLabel.Y = 1
+        $sidebar.Add($sidebarLabel)
+    }
 
     # --- Footer (View simple sans cadre, style barre de status) ---
     $footer = [Terminal.Gui.View]::new()
@@ -107,11 +116,12 @@ function New-TuiLayout {
     $window.Add($footer)
 
     return @{
-        Window  = $window
-        Header  = $header
-        Sidebar = $sidebar
-        Body    = $body
-        Footer  = $footer
+        Window      = $window
+        Header      = $header
+        Sidebar     = $sidebar
+        Body        = $body
+        Footer      = $footer
+        ProjectList = $projectList
     }
 }
 
@@ -177,7 +187,7 @@ function Start-LauncherTui {
         $themes = Set-TuiThemeDark
 
         # 4. Construire le layout
-        $layout = New-TuiLayout -Themes $themes
+        $layout = New-TuiLayout -Themes $themes -Config $Config
 
         # 5. Enregistrer les keybindings
         Register-TuiKeybindings -Window $layout.Window
