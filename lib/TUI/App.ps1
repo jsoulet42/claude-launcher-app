@@ -78,16 +78,43 @@ function New-TuiLayout {
     $bodyLabel.Y = 2
     $body.Add($bodyLabel)
 
-    # --- Contenu sidebar (apres body pour la reference) ---
+    # --- Contenu sidebar : ProjectList + PresetSelector (tab switching) ---
     $projectList = $null
+    $presetSelector = $null
+    # Note : l'etat de l'onglet actif est gere dans Register-TuiKeybindings via $tabState hashtable
+
+    # Creer le widget ProjectList
     if ($Config -and $Config.projects -and $Config.projects.Count -gt 0) {
         $projectList = New-ProjectListView -Config $Config -BodyView $body -Themes $Themes
+    }
+
+    # Creer le widget PresetSelector
+    $presetSelector = New-PresetSelectorView -Config $Config -BodyView $body -Themes $Themes
+
+    # Indicateur d'onglet en haut de la sidebar
+    $tabLabel = [Terminal.Gui.Label]::new("[Projets] Presets")
+    $tabLabel.X = 0
+    $tabLabel.Y = 0
+    $tabLabel.Width = [Terminal.Gui.Dim]::Fill()
+    if ($Themes) { $tabLabel.ColorScheme = $Themes.Header }
+    $sidebar.Add($tabLabel)
+
+    # Afficher le ProjectList par defaut (sous le label d'onglet)
+    if ($projectList) {
+        $projectList.ListView.Y = 1
+        $projectList.ListView.Height = [Terminal.Gui.Dim]::Fill()
         $sidebar.Add($projectList.ListView)
     } else {
         $sidebarLabel = [Terminal.Gui.Label]::new("(aucun projet)")
         $sidebarLabel.X = 1
         $sidebarLabel.Y = 1
         $sidebar.Add($sidebarLabel)
+    }
+
+    # Preparer le PresetSelector (Y=1 pour etre sous le label d'onglet)
+    if ($presetSelector) {
+        $presetSelector.ListView.Y = 1
+        $presetSelector.ListView.Height = [Terminal.Gui.Dim]::Fill()
     }
 
     # --- Footer (View simple sans cadre, style barre de status) ---
@@ -100,7 +127,7 @@ function New-TuiLayout {
         $footer.ColorScheme = $Themes.Footer
     }
 
-    $footerLabel = [Terminal.Gui.Label]::new(" [Tab] Naviguer  [Entree] Selectionner  [Q] Quitter  [?] Aide")
+    $footerLabel = [Terminal.Gui.Label]::new(" [F1] Projets/Presets  [Entree] Selectionner  [Q] Quitter  [?] Aide")
     $footerLabel.X = 0
     $footerLabel.Y = 0
     $footerLabel.Width = [Terminal.Gui.Dim]::Fill()
@@ -116,12 +143,14 @@ function New-TuiLayout {
     $window.Add($footer)
 
     return @{
-        Window      = $window
-        Header      = $header
-        Sidebar     = $sidebar
-        Body        = $body
-        Footer      = $footer
-        ProjectList = $projectList
+        Window         = $window
+        Header         = $header
+        Sidebar        = $sidebar
+        Body           = $body
+        Footer         = $footer
+        ProjectList    = $projectList
+        PresetSelector = $presetSelector
+        TabLabel       = $tabLabel
     }
 }
 
@@ -129,8 +158,31 @@ function Register-TuiKeybindings {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [Terminal.Gui.Window]$Window
+        [Terminal.Gui.Window]$Window,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Layout
     )
+
+    # Capturer les references pour les closures du tab switching
+    $capturedSidebar = $Layout.Sidebar
+    $capturedProjectListLV = if ($Layout.ProjectList) { $Layout.ProjectList.ListView } else { $null }
+    $capturedPresetSelectorLV = if ($Layout.PresetSelector) { $Layout.PresetSelector.ListView } else { $null }
+    $capturedTabLabel = $Layout.TabLabel
+    $capturedLogFn = ${function:Write-Log}
+    $capturedNoProjectLabel = $null
+    # Etat mutable partage via hashtable (les variables $script: ne survivent pas a GetNewClosure)
+    $tabState = @{ Active = 'projects' }
+
+    # Si pas de ProjectList, garder le label "(aucun projet)" pour le re-afficher
+    if (-not $capturedProjectListLV) {
+        foreach ($subview in $capturedSidebar.Subviews) {
+            if ($subview -is [Terminal.Gui.Label] -and $subview.Y -eq 1) {
+                $capturedNoProjectLabel = $subview
+                break
+            }
+        }
+    }
 
     # Enregistrer les raccourcis clavier sur la fenetre principale
     # Note : on utilise KeyValue (int) au lieu de Key enum car PowerShell
@@ -146,12 +198,46 @@ function Register-TuiKeybindings {
             $keyEvent.Handled = $true
         }
 
+        # F1 → Switch sidebar Projets ↔ Presets (F1=1048588)
+        if ($keyValue -eq 1048588) {
+            if ($tabState.Active -eq 'projects') {
+                # Retirer ProjectList (ou label aucun projet), ajouter PresetSelector
+                if ($capturedProjectListLV) {
+                    $capturedSidebar.Remove($capturedProjectListLV)
+                } elseif ($capturedNoProjectLabel) {
+                    $capturedSidebar.Remove($capturedNoProjectLabel)
+                }
+                if ($capturedPresetSelectorLV) {
+                    $capturedSidebar.Add($capturedPresetSelectorLV)
+                }
+                $capturedTabLabel.Text = "Projets [Presets]"
+                $tabState.Active = 'presets'
+                & $capturedLogFn -Level 'DEBUG' -Source 'App' -Message "Sidebar tab switch to 'presets'"
+            } else {
+                # Retirer PresetSelector, ajouter ProjectList
+                if ($capturedPresetSelectorLV) {
+                    $capturedSidebar.Remove($capturedPresetSelectorLV)
+                }
+                if ($capturedProjectListLV) {
+                    $capturedSidebar.Add($capturedProjectListLV)
+                } elseif ($capturedNoProjectLabel) {
+                    $capturedSidebar.Add($capturedNoProjectLabel)
+                }
+                $capturedTabLabel.Text = "[Projets] Presets"
+                $tabState.Active = 'projects'
+                & $capturedLogFn -Level 'DEBUG' -Source 'App' -Message "Sidebar tab switch to 'projects'"
+            }
+            $capturedSidebar.SetNeedsDisplay()
+            $keyEvent.Handled = $true
+        }
+
         # ? → Aide (?=63)
         if ($keyValue -eq 63) {
             $helpText = "`n" +
-                "  Tab / Shift+Tab .. Naviguer entre zones`n" +
+                "  F1 ............... Projets / Presets`n" +
                 "  Fleches .......... Naviguer dans les listes`n" +
-                "  Entree ........... Selectionner / valider`n" +
+                "  Entree ........... Selectionner / lancer`n" +
+                "  Tab / Shift+Tab .. Naviguer entre zones`n" +
                 "  Echap ............ Retour / fermer dialog`n" +
                 "  Q ................ Quitter`n" +
                 "  ? ................ Cette aide`n"
@@ -179,6 +265,7 @@ function Start-LauncherTui {
 
     # 2. Initialiser, construire, lancer avec try/finally
     Write-Log -Level 'INFO' -Source 'App' -Message "TUI starting with $($Config.projects.Count) projects"
+    $script:SelectedPresetSlug = $null
     $initialized = $false
     try {
         [Terminal.Gui.Application]::Init()
@@ -190,8 +277,8 @@ function Start-LauncherTui {
         # 4. Construire le layout
         $layout = New-TuiLayout -Themes $themes -Config $Config
 
-        # 5. Enregistrer les keybindings
-        Register-TuiKeybindings -Window $layout.Window
+        # 5. Enregistrer les keybindings (avec layout pour tab switching)
+        Register-TuiKeybindings -Window $layout.Window -Layout $layout
 
         # 6. Ajouter la fenetre et lancer la boucle
         [Terminal.Gui.Application]::Top.Add($layout.Window)
@@ -205,4 +292,11 @@ function Start-LauncherTui {
         }
         Write-Log -Level 'INFO' -Source 'App' -Message "TUI shutdown"
     }
+
+    # Retourner le resultat : preset selectionne ou $null (quit normal)
+    if ($script:SelectedPresetSlug) {
+        Write-Log -Level 'INFO' -Source 'App' -Message "TUI returned preset: $($script:SelectedPresetSlug)"
+        return @{ Action = 'launch-preset'; PresetSlug = $script:SelectedPresetSlug }
+    }
+    return $null
 }
