@@ -265,7 +265,6 @@ function Start-LauncherTui {
 
     # 2. Initialiser, construire, lancer avec try/finally
     Write-Log -Level 'INFO' -Source 'App' -Message "TUI starting with $($Config.projects.Count) projects"
-    $script:SelectedPresetSlug = $null
     $initialized = $false
     try {
         [Terminal.Gui.Application]::Init()
@@ -277,10 +276,16 @@ function Start-LauncherTui {
         # 4. Construire le layout
         $layout = New-TuiLayout -Themes $themes -Config $Config
 
-        # 5. Enregistrer les keybindings (avec layout pour tab switching)
+        # 5. Injecter la reference Window dans PresetSelector pour le launch flow
+        if ($layout.PresetSelector -and $layout.PresetSelector.WindowRef) {
+            $layout.PresetSelector.WindowRef.Window = $layout.Window
+            Write-Log -Level 'DEBUG' -Source 'App' -Message "Window reference injected into PresetSelector"
+        }
+
+        # 6. Enregistrer les keybindings (avec layout pour tab switching)
         Register-TuiKeybindings -Window $layout.Window -Layout $layout
 
-        # 6. Ajouter la fenetre et lancer la boucle
+        # 7. Ajouter la fenetre et lancer la boucle
         [Terminal.Gui.Application]::Top.Add($layout.Window)
         [Terminal.Gui.Application]::Run()
 
@@ -293,10 +298,8 @@ function Start-LauncherTui {
         Write-Log -Level 'INFO' -Source 'App' -Message "TUI shutdown"
     }
 
-    # Retourner le resultat : preset selectionne ou $null (quit normal)
-    if ($script:SelectedPresetSlug) {
-        Write-Log -Level 'INFO' -Source 'App' -Message "TUI returned preset: $($script:SelectedPresetSlug)"
-        return @{ Action = 'launch-preset'; PresetSlug = $script:SelectedPresetSlug }
-    }
+    # Le lancement est gere en interne via Start-LaunchFlow (modales).
+    # Start-LauncherTui retourne $null quand l'utilisateur quitte (Q).
+    Write-Log -Level 'INFO' -Source 'App' -Message "TUI exited normally"
     return $null
 }
