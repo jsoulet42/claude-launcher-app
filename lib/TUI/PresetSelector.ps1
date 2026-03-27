@@ -166,6 +166,27 @@ function Get-LayoutAsciiPreview {
             $lines += "  $([char]0x2514)$bigBar$([char]0x2534)$smallBar$([char]0x2518)"
             return $lines -join "`n"
         }
+        'main-plus-stack' {
+            # 70% principal a gauche + 2 panneaux empiles a droite (30%)
+            $bigW = 18
+            $smallW = $cellW
+            $bigBar = [string][char]0x2500 * $bigW
+            $smallBar = [string][char]0x2500 * $smallW
+
+            $p0 = if ($count -ge 1) { $panelInfos[0] } else { @{ Name = '(vide)'; Cmd = '-' } }
+            $p1 = if ($count -ge 2) { $panelInfos[1] } else { @{ Name = '(vide)'; Cmd = '-' } }
+            $p2 = if ($count -ge 3) { $panelInfos[2] } else { @{ Name = '(vide)'; Cmd = '-' } }
+
+            $lines = @()
+            $lines += "  $([char]0x250C)$bigBar$([char]0x252C)$smallBar$([char]0x2510)"
+            $lines += "  $([char]0x2502) $($p0.Name.PadRight($bigW-2)) $([char]0x2502) $($p1.Name.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2502) $($p0.Cmd.PadRight($bigW-2)) $([char]0x2502) $($p1.Cmd.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2502) $(' ' * ($bigW-2)) $([char]0x251C)$smallBar$([char]0x2524)"
+            $lines += "  $([char]0x2502) $(' ' * ($bigW-2)) $([char]0x2502) $($p2.Name.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2502) $(' ' * ($bigW-2)) $([char]0x2502) $($p2.Cmd.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2514)$bigBar$([char]0x2534)$smallBar$([char]0x2518)"
+            return $lines -join "`n"
+        }
         default {
             # Layout inconnu — afficher les panneaux en liste simple
             $lines = @("  Layout: $LayoutSlug")
