@@ -35,6 +35,7 @@ Write-Log -Level 'INFO' -Source 'Launcher' -Message "Claude Launcher started (ar
 . "$PSScriptRoot\lib\Config\ConfigSchema.ps1"
 . "$PSScriptRoot\lib\Config\ConfigLoader.ps1"
 . "$PSScriptRoot\lib\Terminal\WtBuilder.ps1"
+# Note: InitialCommands.ps1 est charge via WtBuilder.ps1 (dot-source en cascade)
 
 # --- Fonctions internes ---
 
@@ -77,9 +78,18 @@ function Show-WorkspacePreview {
             $path = $path.Substring(0, 20) + '...' + $path.Substring($path.Length - 27)
         }
 
+        # Resoudre initial_command : panel → project → null
+        $initCmd = $null
+        if ($panel.ContainsKey('initial_command') -and -not [string]::IsNullOrWhiteSpace($panel.initial_command)) {
+            $initCmd = $panel.initial_command
+        } elseif ($proj.ContainsKey('initial_command') -and -not [string]::IsNullOrWhiteSpace($proj.initial_command)) {
+            $initCmd = $proj.initial_command
+        }
+
         $index = $i + 1
         $name = $proj.name.PadRight(12)
-        Write-Host "  [$index] $name | $($cmd.PadRight(10)) | $path"
+        $initSuffix = if ($initCmd) { " then: $initCmd" } else { '' }
+        Write-Host "  [$index] $name | $($cmd.PadRight(10)) | $path$initSuffix"
     }
 
     Write-Host ""

@@ -9,6 +9,8 @@
 
 # Import ConfigSchema pour Get-LayoutPanelCount
 . "$PSScriptRoot\..\Config\ConfigSchema.ps1"
+# Import InitialCommands pour la resolution des variables template
+. "$PSScriptRoot\..\Core\InitialCommands.ps1"
 
 function Protect-WtArgument {
     <#
@@ -50,6 +52,9 @@ function Build-WtPanel {
 
         [Parameter(Mandatory)]
         [hashtable]$Project,
+
+        [Parameter(Mandatory)]
+        [hashtable]$Preset,
 
         [string]$SplitDirection,
 
@@ -93,6 +98,12 @@ function Build-WtPanel {
         $initialCommand = $Panel.initial_command
     } elseif ($Project.ContainsKey('initial_command') -and -not [string]::IsNullOrWhiteSpace($Project.initial_command)) {
         $initialCommand = $Project.initial_command
+    }
+
+    # Resolution des variables template ({{project}}, {{branch}}, etc.)
+    if ($initialCommand -and $initialCommand -match '\{\{\w+\}\}') {
+        $context = Get-InitialCommandContext -Project $Project -ProjectSlug $slug -Preset $Preset
+        $initialCommand = Resolve-InitialCommand -Template $initialCommand -Context $context
     }
 
     # --- Construction du titre ---
@@ -196,7 +207,7 @@ function Build-WtCommand {
     $firstPanel = $panels[0]
     $firstProject = $Projects[$firstPanel.project]
     $fragments = @()
-    $fragments += Build-WtPanel -Panel $firstPanel -Project $firstProject
+    $fragments += Build-WtPanel -Panel $firstPanel -Project $firstProject -Preset $Preset
 
     # --- Cas "single" : pas de splits ---
     $splits = if ($Layout.ContainsKey('splits')) { $Layout.splits } else { @() }
@@ -221,7 +232,7 @@ function Build-WtCommand {
 
             $panel = $panels[$panelIndex]
             $project = $Projects[$panel.project]
-            $fragment = Build-WtPanel -Panel $panel -Project $project -SplitDirection $split
+            $fragment = Build-WtPanel -Panel $panel -Project $project -Preset $Preset -SplitDirection $split
             $fragments += $fragment
             $panelIndex++
         }

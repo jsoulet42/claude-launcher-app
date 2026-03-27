@@ -47,11 +47,23 @@ function Get-LayoutAsciiPreview {
             }
         }
 
+        # Resolution initial_command : panel.initial_command → project.initial_command → null
+        $initCmd = $null
+        if ($panel.ContainsKey('initial_command') -and -not [string]::IsNullOrWhiteSpace($panel.initial_command)) {
+            $initCmd = $panel.initial_command
+        } elseif ($projSlug -ne '{{auto}}' -and $Projects.ContainsKey($projSlug)) {
+            $proj2 = $Projects[$projSlug]
+            if ($proj2.ContainsKey('initial_command') -and -not [string]::IsNullOrWhiteSpace($proj2.initial_command)) {
+                $initCmd = $proj2.initial_command
+            }
+        }
+
         # Tronquer si trop long
         if ($projName.Length -gt 10) { $projName = $projName.Substring(0, 9) + '.' }
         if ($cmd.Length -gt 10) { $cmd = $cmd.Substring(0, 9) + '.' }
+        if ($initCmd -and $initCmd.Length -gt 10) { $initCmd = $initCmd.Substring(0, 9) + '.' }
 
-        $panelInfos += @{ Name = $projName; Cmd = $cmd }
+        $panelInfos += @{ Name = $projName; Cmd = $cmd; InitCmd = $initCmd }
     }
 
     $count = $panelInfos.Count
@@ -268,8 +280,37 @@ function Update-PresetPreview {
         $asciiLabel.Y = 4 + $infoLines.Count + 1
         $BodyView.Add($asciiLabel)
 
+        # Afficher les commandes initiales si presentes
+        $initCmdY = 4 + $infoLines.Count + 1 + ($ascii -split "`n").Count + 1
+        $initCmdLines = @()
+        for ($i = 0; $i -lt $Preset.panels.Count; $i++) {
+            $panel = $Preset.panels[$i]
+            $projSlug = $panel.project
+            $initCmd = $null
+            if ($panel.ContainsKey('initial_command') -and -not [string]::IsNullOrWhiteSpace($panel.initial_command)) {
+                $initCmd = $panel.initial_command
+            } elseif ($projSlug -ne '{{auto}}' -and $Config.projects.ContainsKey($projSlug)) {
+                $proj = $Config.projects[$projSlug]
+                if ($proj.ContainsKey('initial_command') -and -not [string]::IsNullOrWhiteSpace($proj.initial_command)) {
+                    $initCmd = $proj.initial_command
+                }
+            }
+            if ($initCmd) {
+                $pName = if ($projSlug -ne '{{auto}}' -and $Config.projects.ContainsKey($projSlug)) { $Config.projects[$projSlug].name } else { $projSlug }
+                $initCmdLines += "  $pName $([char]0x2192) then: $initCmd"
+            }
+        }
+        if ($initCmdLines.Count -gt 0) {
+            $initCmdText = ($initCmdLines -join "`n")
+            $initCmdLabel = [Terminal.Gui.Label]::new($initCmdText)
+            $initCmdLabel.X = 0
+            $initCmdLabel.Y = $initCmdY
+            $BodyView.Add($initCmdLabel)
+            $initCmdY += $initCmdLines.Count + 1
+        }
+
         # Hint lancement
-        $hintY = 4 + $infoLines.Count + 1 + ($ascii -split "`n").Count + 1
+        $hintY = $initCmdY
         $hintText = if ($hasAuto) {
             "  [Enter] Lancer (choix du projet requis)"
         } else {
