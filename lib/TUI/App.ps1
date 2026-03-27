@@ -88,8 +88,27 @@ function New-TuiLayout {
         $projectList = New-ProjectListView -Config $Config -BodyView $body -Themes $Themes
     }
 
-    # Creer le widget PresetSelector
-    $presetSelector = New-PresetSelectorView -Config $Config -BodyView $body -Themes $Themes
+    # Determiner le gitContext pour les suggestions intelligentes
+    $gitCtx = $null
+    $lastHistory = Get-LaunchHistory -Limit 1
+    if ($lastHistory -and $lastHistory.Count -gt 0 -and $lastHistory[0].project) {
+        $lastProjSlug = $lastHistory[0].project
+        if ($Config.projects.ContainsKey($lastProjSlug)) {
+            $projPath = $Config.projects[$lastProjSlug].path
+            $gitInfo = Get-ProjectGitInfo -Path $projPath
+            if ($gitInfo.IsGit) {
+                $gitCtx = @{
+                    ProjectSlug = $lastProjSlug
+                    Branch      = $gitInfo.Branch
+                    IsDirty     = $gitInfo.IsDirty
+                    DirtyCount  = $gitInfo.DirtyCount
+                }
+            }
+        }
+    }
+
+    # Creer le widget PresetSelector avec suggestions intelligentes
+    $presetSelector = New-PresetSelectorView -Config $Config -BodyView $body -Themes $Themes -GitContext $gitCtx
 
     # Indicateur d'onglet en haut de la sidebar
     $tabLabel = [Terminal.Gui.Label]::new("[Projets] Presets")
@@ -460,6 +479,8 @@ function Start-LauncherTui {
     Import-TuiAssembly
 
     # 2. Initialiser, construire, lancer avec try/finally
+    # Initialiser le moteur de suggestions intelligentes
+    Initialize-SmartPresets
     Write-Log -Level 'INFO' -Source 'App' -Message "TUI starting with $($Config.projects.Count) projects"
     $initialized = $false
     try {
