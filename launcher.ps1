@@ -137,6 +137,7 @@ if ($Preset -eq 'tui') {
         . "$PSScriptRoot\lib\TUI\ProjectList.ps1"
         . "$PSScriptRoot\lib\TUI\PresetSelector.ps1"
         . "$PSScriptRoot\lib\TUI\LaunchFlow.ps1"
+        . "$PSScriptRoot\lib\Scanner\ProjectScanner.ps1"
         . "$PSScriptRoot\lib\TUI\App.ps1"
         # Le lancement est gere en interne par Start-LaunchFlow (modales TUI).
         # Start-LauncherTui retourne $null quand l'utilisateur quitte (Q).
