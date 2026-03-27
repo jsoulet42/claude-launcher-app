@@ -214,7 +214,9 @@ function Update-PresetPreview {
         [Parameter(Mandatory)]
         [hashtable]$Config,
 
-        [hashtable]$Themes
+        [hashtable]$Themes,
+
+        [array]$Suggestions
     )
 
     $BodyView.RemoveAll()
@@ -277,6 +279,23 @@ function Update-PresetPreview {
         $hintLabel.X = 0
         $hintLabel.Y = $hintY
         $BodyView.Add($hintLabel)
+
+        # Afficher le score de suggestion si disponible
+        if ($Suggestions) {
+            $suggestion = $Suggestions | Where-Object { $_.Slug -eq $Slug } | Select-Object -First 1
+            if ($suggestion -and $suggestion.Score -gt 0) {
+                $b = $suggestion.Breakdown
+                $suggestionLines = @()
+                $suggestionLines += "  $([string][char]0x2500 * 20) Suggestion $([string][char]0x2500 * 20)"
+                $suggestionLines += "  Score : $($suggestion.Score)/100 (freq:$($b.Frequency) rec:$($b.Recency) heure:$($b.TimeOfDay) git:$($b.GitContext))"
+                $suggestionLines += "  Raison : $($suggestion.Reason)"
+
+                $suggestionLabel = [Terminal.Gui.Label]::new(($suggestionLines -join "`n"))
+                $suggestionLabel.X = 0
+                $suggestionLabel.Y = $hintY + 2
+                $BodyView.Add($suggestionLabel)
+            }
+        }
     }
 
     $BodyView.SetNeedsDisplay()
@@ -292,14 +311,15 @@ function New-PresetSelectorView {
         [Parameter(Mandatory)]
         [Terminal.Gui.View]$BodyView,
 
-        [hashtable]$Themes
+        [hashtable]$Themes,
+
+        [hashtable]$GitContext
     )
 
     # Filtrer les presets valides
     $presetsArray = [System.Collections.Generic.List[hashtable]]::new()
     $displayLines = [System.Collections.Generic.List[string]]::new()
     $invalidCount = 0
-    $defaultPreset = if ($Config.preferences -and $Config.preferences.default_preset) { $Config.preferences.default_preset } else { '' }
 
     if (-not $Config.presets -or $Config.presets.Count -eq 0) {
         Write-Log -Level 'WARN' -Source 'PresetSelector' -Message "Aucun preset configure"
@@ -311,14 +331,31 @@ function New-PresetSelectorView {
         $listView.Height = [Terminal.Gui.Dim]::Fill()
         $listView.AllowsMarking = $false
         if ($Themes) { $listView.ColorScheme = $Themes.Sidebar }
-        return @{ ListView = $listView; Presets = @() }
+        return @{ ListView = $listView; Presets = @(); Suggestions = @() }
     }
 
-    # Trier : defaut en premier, puis alphabetique
-    $sortedSlugs = $Config.presets.Keys | Sort-Object | Sort-Object { $_ -eq $defaultPreset } -Descending
+    # Obtenir les suggestions intelligentes
+    $suggestions = Get-PresetSuggestions -Config $Config -GitContext $GitContext
+
+    # Construire un lookup slug → suggestion
+    $suggestionMap = @{}
+    foreach ($s in $suggestions) {
+        $suggestionMap[$s.Slug] = $s
+    }
+
+    # Trier par score (ordre des suggestions)
+    $sortedSlugs = @($suggestions | ForEach-Object { $_.Slug })
+
+    # Ajouter les presets non-scores (nouveaux presets pas encore dans l'historique)
+    foreach ($slug in $Config.presets.Keys) {
+        if ($slug -notin $sortedSlugs) {
+            $sortedSlugs += $slug
+        }
+    }
 
     foreach ($slug in $sortedSlugs) {
         $preset = $Config.presets[$slug]
+        if (-not $preset) { continue }
 
         # Valider le layout
         if (-not $Config.layouts.ContainsKey($preset.layout)) {
@@ -344,9 +381,11 @@ function New-PresetSelectorView {
             Preset = $preset
         })
 
-        # Ligne d'affichage
-        $prefix = if ($slug -eq $defaultPreset) { "$([char]0x2605) " } else { '  ' }
-        $displayLines.Add([string]"$prefix$($preset.name) ($($preset.panels.Count))")
+        # Ligne d'affichage avec badge suggestion
+        $suggestion = $suggestionMap[$slug]
+        $prefix = if ($suggestion -and $suggestion.IsSuggested) { "$([char]0x2605) " } else { '  ' }
+        $suffix = if ($suggestion -and $suggestion.IsSuggested) { ' [Suggere]' } else { '' }
+        $displayLines.Add([string]"$prefix$($preset.name) ($($preset.panels.Count))$suffix")
     }
 
     Write-Log -Level 'INFO' -Source 'PresetSelector' -Message "PresetSelector: $($presetsArray.Count) presets charges, $invalidCount invalides ignores"
@@ -382,6 +421,7 @@ function New-PresetSelectorView {
     $capturedConfig = $Config
     $capturedLV = $listView
     $capturedThemes = $Themes
+    $capturedSuggestions = $suggestions
     $capturedLogFn = ${function:Write-Log}
     $capturedUpdateFn = ${function:Update-PresetPreview}
     $capturedLaunchFlowFn = ${function:Start-LaunchFlow}
@@ -393,7 +433,7 @@ function New-PresetSelectorView {
 
         $entry = $capturedPresetsArray[$idx]
         & $capturedLogFn -Level 'DEBUG' -Source 'PresetSelector' -Message "Selected: $($entry.Slug)"
-        & $capturedUpdateFn -BodyView $capturedBody -Preset $entry.Preset -Slug $entry.Slug -Config $capturedConfig -Themes $capturedThemes
+        & $capturedUpdateFn -BodyView $capturedBody -Preset $entry.Preset -Slug $entry.Slug -Config $capturedConfig -Themes $capturedThemes -Suggestions $capturedSuggestions
     }.GetNewClosure()
 
     # Event : changement de selection → update preview
@@ -426,11 +466,16 @@ function New-PresetSelectorView {
 
         $result = & $capturedLaunchFlowFn -Config $capturedConfig -PresetEntry $entry -Window $window -Themes $capturedThemes
         & $capturedLogFn -Level 'INFO' -Source 'PresetSelector' -Message "Launch flow result: $($result.Action)"
+
+        # Forcer un refresh de Terminal.Gui apres le lancement pour re-stabiliser la boucle d'events
+        # Sans ca, le retour apres wt.exe peut corrompre l'etat du terminal
+        try { [Terminal.Gui.Application]::Top.SetNeedsDisplay() } catch {}
     }.GetNewClosure()))
 
     return @{
-        ListView   = $listView
-        Presets    = $capturedPresetsArray
-        WindowRef  = $capturedWindowRef
+        ListView    = $listView
+        Presets     = $capturedPresetsArray
+        WindowRef   = $capturedWindowRef
+        Suggestions = $suggestions
     }
 }

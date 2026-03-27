@@ -222,9 +222,43 @@ function Invoke-PresetLaunch {
 
         Write-Log -Level 'DEBUG' -Source 'LaunchFlow' -Message "wt.exe args: $wtArgs"
 
-        # Lancer Windows Terminal
-        Start-Process wt.exe -ArgumentList $wtArgs
+        # Lancer Windows Terminal dans un processus detache
+        # -WindowStyle Normal evite que Start-Process herite de la console du TUI
+        Start-Process wt.exe -ArgumentList $wtArgs -WindowStyle Normal
+        # Laisser wt.exe s'initialiser avant que Terminal.Gui reprenne la boucle d'events
+        # Sans ce delai, la creation de fenetre WT peut perturber le handle console du TUI
+        Start-Sleep -Milliseconds 500
         Write-Log -Level 'INFO' -Source 'LaunchFlow' -Message "Workspace launched successfully"
+
+        # Tracker le lancement dans l'historique smart-presets
+        try {
+            $trackPresetSlug = $ResolvedPreset.name
+            # Retrouver le slug du preset (pas le name) via le config
+            foreach ($key in $Config.presets.Keys) {
+                if ($Config.presets[$key].name -eq $ResolvedPreset.name) {
+                    $trackPresetSlug = $key
+                    break
+                }
+            }
+            $trackProjectSlug = ''
+            $trackBranch = ''
+            if ($ResolvedPreset.panels -and $ResolvedPreset.panels.Count -gt 0) {
+                $firstProjSlug = $ResolvedPreset.panels[0].project
+                if ($firstProjSlug -and $firstProjSlug -ne '{{auto}}') {
+                    $trackProjectSlug = $firstProjSlug
+                    if ($Config.projects.ContainsKey($firstProjSlug)) {
+                        $gitInfo = Get-ProjectGitInfo -Path $Config.projects[$firstProjSlug].path
+                        if ($gitInfo.IsGit) {
+                            $trackBranch = $gitInfo.Branch
+                        }
+                    }
+                }
+            }
+            Add-LaunchEntry -PresetSlug $trackPresetSlug -ProjectSlug $trackProjectSlug -GitBranch $trackBranch
+        } catch {
+            Write-Log -Level 'WARN' -Source 'LaunchFlow' -Message "Failed to track launch: $($_.Exception.Message)"
+        }
+
         return $true
 
     } catch {
