@@ -136,20 +136,11 @@ if ($Preset -eq 'tui') {
         . "$PSScriptRoot\lib\TUI\Theme.ps1"
         . "$PSScriptRoot\lib\TUI\ProjectList.ps1"
         . "$PSScriptRoot\lib\TUI\PresetSelector.ps1"
+        . "$PSScriptRoot\lib\TUI\LaunchFlow.ps1"
         . "$PSScriptRoot\lib\TUI\App.ps1"
-        $tuiResult = Start-LauncherTui -Config $config
-
-        # Si un preset a ete selectionne dans le TUI, le lancer
-        if ($tuiResult -and $tuiResult.Action -eq 'launch-preset') {
-            $selectedPreset = $config.presets[$tuiResult.PresetSlug]
-            $selectedLayout = $config.layouts[$selectedPreset.layout]
-            Write-Log -Level 'INFO' -Source 'Launcher' -Message "Launching preset '$($tuiResult.PresetSlug)' from TUI"
-            Show-WorkspacePreview -Preset $selectedPreset -Projects $config.projects
-            $cmd = Build-WtCommand -Preset $selectedPreset -Layout $selectedLayout -Projects $config.projects
-            $wtArgs = $cmd -replace '^wt\.exe\s*', ''
-            Start-Process wt.exe -ArgumentList $wtArgs
-            Write-LauncherSuccess "Lancement..."
-        }
+        # Le lancement est gere en interne par Start-LaunchFlow (modales TUI).
+        # Start-LauncherTui retourne $null quand l'utilisateur quitte (Q).
+        Start-LauncherTui -Config $config | Out-Null
     } catch {
         Write-LogError -Source 'Launcher' -Message "TUI crashed" -ErrorRecord $_
         Write-Host "ERREUR TUI: $($_.Exception.Message)" -ForegroundColor Red

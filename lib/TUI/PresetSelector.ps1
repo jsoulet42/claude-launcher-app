@@ -7,9 +7,6 @@
     Permet la navigation, le preview dans le body, et le lancement direct via Enter.
 #>
 
-# Variable partagee pour communiquer le preset selectionne au code appelant
-$script:SelectedPresetSlug = $null
-
 function Get-LayoutAsciiPreview {
     [CmdletBinding()]
     [OutputType([string])]
@@ -169,6 +166,27 @@ function Get-LayoutAsciiPreview {
             $lines += "  $([char]0x2514)$bigBar$([char]0x2534)$smallBar$([char]0x2518)"
             return $lines -join "`n"
         }
+        'main-plus-stack' {
+            # 70% principal a gauche + 2 panneaux empiles a droite (30%)
+            $bigW = 18
+            $smallW = $cellW
+            $bigBar = [string][char]0x2500 * $bigW
+            $smallBar = [string][char]0x2500 * $smallW
+
+            $p0 = if ($count -ge 1) { $panelInfos[0] } else { @{ Name = '(vide)'; Cmd = '-' } }
+            $p1 = if ($count -ge 2) { $panelInfos[1] } else { @{ Name = '(vide)'; Cmd = '-' } }
+            $p2 = if ($count -ge 3) { $panelInfos[2] } else { @{ Name = '(vide)'; Cmd = '-' } }
+
+            $lines = @()
+            $lines += "  $([char]0x250C)$bigBar$([char]0x252C)$smallBar$([char]0x2510)"
+            $lines += "  $([char]0x2502) $($p0.Name.PadRight($bigW-2)) $([char]0x2502) $($p1.Name.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2502) $($p0.Cmd.PadRight($bigW-2)) $([char]0x2502) $($p1.Cmd.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2502) $(' ' * ($bigW-2)) $([char]0x251C)$smallBar$([char]0x2524)"
+            $lines += "  $([char]0x2502) $(' ' * ($bigW-2)) $([char]0x2502) $($p2.Name.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2502) $(' ' * ($bigW-2)) $([char]0x2502) $($p2.Cmd.PadRight($smallW-2)) $([char]0x2502)"
+            $lines += "  $([char]0x2514)$bigBar$([char]0x2534)$smallBar$([char]0x2518)"
+            return $lines -join "`n"
+        }
         default {
             # Layout inconnu — afficher les panneaux en liste simple
             $lines = @("  Layout: $LayoutSlug")
@@ -251,7 +269,7 @@ function Update-PresetPreview {
         # Hint lancement
         $hintY = 4 + $infoLines.Count + 1 + ($ascii -split "`n").Count + 1
         $hintText = if ($hasAuto) {
-            "  (auto) $([char]0x2192) Lancement via flow complet (P7)"
+            "  [Enter] Lancer (choix du projet requis)"
         } else {
             "  [Enter] Lancer ce preset"
         }
@@ -276,8 +294,6 @@ function New-PresetSelectorView {
 
         [hashtable]$Themes
     )
-
-    $script:SelectedPresetSlug = $null
 
     # Filtrer les presets valides
     $presetsArray = [System.Collections.Generic.List[hashtable]]::new()
@@ -368,6 +384,7 @@ function New-PresetSelectorView {
     $capturedThemes = $Themes
     $capturedLogFn = ${function:Write-Log}
     $capturedUpdateFn = ${function:Update-PresetPreview}
+    $capturedLaunchFlowFn = ${function:Start-LaunchFlow}
 
     # Scriptblock pour mettre a jour le preview dans le body
     $updateBody = {
@@ -385,15 +402,10 @@ function New-PresetSelectorView {
         & $updateBody
     }.GetNewClosure()))
 
-    # Event : Enter → lancer le preset
-    $capturedHasAutoFn = {
-        param([hashtable]$Preset)
-        foreach ($panel in $Preset.panels) {
-            if ($panel.project -eq '{{auto}}') { return $true }
-        }
-        return $false
-    }
+    # Capturer la fenetre pour le launch flow (sera set par New-TuiLayout via SetWindow)
+    $capturedWindowRef = @{ Window = $null }
 
+    # Event : Enter → lancer le preset via LaunchFlow
     $listView.add_OpenSelectedItem((Protect-EventHandler -Source 'PresetSelector' -Handler {
         param($sender, $e)
         $idx = [int]$capturedLV.SelectedItem
@@ -403,26 +415,22 @@ function New-PresetSelectorView {
         }
 
         $entry = $capturedPresetsArray[$idx]
+        & $capturedLogFn -Level 'INFO' -Source 'PresetSelector' -Message "Enter on preset '$($entry.Slug)', launching flow"
 
-        # Bloquer les presets {{auto}} — P7 les gerera
-        if (& $capturedHasAutoFn -Preset $entry.Preset) {
-            & $capturedLogFn -Level 'WARN' -Source 'PresetSelector' -Message "Preset '$($entry.Slug)' contient des projets (auto), lancement bloque"
-            $capturedBody.RemoveAll()
-            $msgLabel = [Terminal.Gui.Label]::new("  Ce preset contient des projets (auto).`n  Utilisez le flow de lancement (P7)`n  pour choisir les projets.")
-            $msgLabel.X = 2
-            $msgLabel.Y = 3
-            $capturedBody.Add($msgLabel)
-            $capturedBody.SetNeedsDisplay()
+        # Appeler Start-LaunchFlow via modale (sous-boucle Terminal.Gui)
+        $window = $capturedWindowRef.Window
+        if (-not $window) {
+            & $capturedLogFn -Level 'ERROR' -Source 'PresetSelector' -Message "Window reference not set, cannot launch flow"
             return
         }
 
-        & $capturedLogFn -Level 'INFO' -Source 'PresetSelector' -Message "Lancement preset '$($entry.Slug)'"
-        $script:SelectedPresetSlug = $entry.Slug
-        [Terminal.Gui.Application]::RequestStop()
+        $result = & $capturedLaunchFlowFn -Config $capturedConfig -PresetEntry $entry -Window $window -Themes $capturedThemes
+        & $capturedLogFn -Level 'INFO' -Source 'PresetSelector' -Message "Launch flow result: $($result.Action)"
     }.GetNewClosure()))
 
     return @{
-        ListView = $listView
-        Presets  = $capturedPresetsArray
+        ListView   = $listView
+        Presets    = $capturedPresetsArray
+        WindowRef  = $capturedWindowRef
     }
 }

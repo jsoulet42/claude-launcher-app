@@ -18,7 +18,8 @@ function Get-DefaultLayouts {
         'horizontal-3' = @{ splits = @('H', 'H') }
         'vertical-2' = @{ splits = @('V') }
         'grid-2x2' = @{ splits = @('H', 'focus-0', 'V', 'focus-1', 'V') }
-        'main-plus-sidebar' = @{ splits = @('H(70%)') }
+        'main-plus-sidebar' = @{ splits = @('V(60%)') }
+        'main-plus-stack' = @{ splits = @('V(60%)', 'H') }
     }
 }
 

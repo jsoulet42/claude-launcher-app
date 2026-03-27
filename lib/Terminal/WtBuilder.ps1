@@ -201,7 +201,7 @@ function Build-WtCommand {
     # --- Cas "single" : pas de splits ---
     $splits = if ($Layout.ContainsKey('splits')) { $Layout.splits } else { @() }
     if ($splits.Count -eq 0) {
-        return "wt.exe $($fragments[0])"
+        return "wt.exe -w new $($fragments[0])"
     }
 
     # --- Panneaux suivants ---
@@ -228,7 +228,8 @@ function Build-WtCommand {
     }
 
     # --- Assemblage final ---
-    $wtCommand = "wt.exe " + ($fragments -join ' ; ')
+    # -w new : forcer une NOUVELLE fenetre Windows Terminal (ne jamais reutiliser la fenetre courante)
+    $wtCommand = "wt.exe -w new " + ($fragments -join ' ; ')
     Write-Log -Level 'DEBUG' -Source 'WtBuilder' -Message "WT command: $wtCommand"
     return $wtCommand
 }
