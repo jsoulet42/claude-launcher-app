@@ -3,15 +3,40 @@ mod conpty;
 mod error;
 mod terminal;
 
-use config::ConfigData;
+use config::{ConfigData, ValidationLevel, ValidationMessage};
 use tauri::Manager;
 use terminal::TerminalManager;
-use tracing::info;
+use tracing::{error, info};
 
 #[tauri::command]
 fn get_config() -> Result<ConfigData, String> {
     info!("IPC: get_config called");
     config::load_config()
+}
+
+#[tauri::command]
+fn save_config(config: ConfigData) -> Result<(), String> {
+    info!("IPC: save_config called");
+    let messages = config::validate_config(&config);
+    let errors: Vec<&ValidationMessage> = messages
+        .iter()
+        .filter(|m| m.level == ValidationLevel::Error)
+        .collect();
+    if !errors.is_empty() {
+        let msg = format!(
+            "Config invalide, sauvegarde refusee :\n{}",
+            errors.iter().map(|e| format!("  - [{}] {}", e.path, e.message)).collect::<Vec<_>>().join("\n")
+        );
+        error!("{}", msg);
+        return Err(msg);
+    }
+    config::save_config(&config)
+}
+
+#[tauri::command]
+fn validate_config(config: ConfigData) -> Vec<ValidationMessage> {
+    info!("IPC: validate_config called");
+    config::validate_config(&config)
 }
 
 #[tauri::command]
@@ -41,6 +66,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_config,
+            save_config,
+            validate_config,
             get_app_version,
             terminal::create_terminal,
             terminal::write_terminal,

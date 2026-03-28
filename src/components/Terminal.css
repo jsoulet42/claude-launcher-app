@@ -1,0 +1,16 @@
+.terminal-container {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #1e1e2e;
+}
+
+/* Override xterm.js to fill container */
+.terminal-container .xterm {
+  height: 100%;
+}
+
+.terminal-container .xterm-viewport {
+  overflow-y: auto !important;
+}

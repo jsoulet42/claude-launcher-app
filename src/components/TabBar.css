@@ -1,0 +1,126 @@
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  height: var(--tab-height);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.tabbar-tabs {
+  display: flex;
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tabbar-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tabbar-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  min-width: 100px;
+  max-width: 200px;
+  background: var(--bg-tab-inactive);
+  border: none;
+  border-right: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  position: relative;
+}
+
+.tabbar-tab:hover {
+  background: var(--bg-hover);
+}
+
+.tabbar-tab--active {
+  background: var(--bg-tab-active);
+  color: var(--text-primary);
+}
+
+.tabbar-tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--border-accent);
+}
+
+.tabbar-tab-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tabbar-tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.tabbar-tab-edit {
+  flex: 1;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-accent);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  outline: none;
+  min-width: 0;
+}
+
+.tabbar-tab-close {
+  opacity: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  transition: opacity var(--transition-fast);
+  line-height: 1;
+}
+
+.tabbar-tab:hover .tabbar-tab-close {
+  opacity: 1;
+}
+
+.tabbar-tab-close:hover {
+  background: var(--bg-hover);
+  color: var(--accent-red);
+}
+
+.tabbar-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tab-height);
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border-primary);
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.tabbar-add:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
