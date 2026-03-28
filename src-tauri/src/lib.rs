@@ -1,6 +1,7 @@
 mod config;
 mod conpty;
 mod error;
+mod git;
 mod terminal;
 
 use config::{ConfigData, ValidationLevel, ValidationMessage};
@@ -74,6 +75,9 @@ pub fn run() {
             terminal::resize_terminal,
             terminal::close_terminal,
             terminal::list_terminals,
+            git::get_git_info,
+            git::get_git_branch,
+            git::format_title,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

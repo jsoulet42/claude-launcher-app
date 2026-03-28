@@ -31,3 +31,5 @@ windows = { version = "0.58", features = [
     "Win32_System_IO",
 ] }
 uuid = { version = "1", features = ["v4"] }
+git2 = { version = "0.19", features = ["vendored-libgit2"] }
+dunce = "1"
