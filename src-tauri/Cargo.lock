@@ -330,6 +330,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "walkdir",
  "windows 0.58.0",
 ]
 
