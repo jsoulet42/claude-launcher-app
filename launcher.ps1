@@ -32,6 +32,7 @@ Initialize-Logger -LogDir (Join-Path $PSScriptRoot 'logs')
 Write-Log -Level 'INFO' -Source 'Launcher' -Message "Claude Launcher started (args: $Preset)"
 
 # --- Imports ---
+. "$PSScriptRoot\lib\Git\GitInfo.ps1"
 . "$PSScriptRoot\lib\Config\ConfigSchema.ps1"
 . "$PSScriptRoot\lib\Config\ConfigLoader.ps1"
 . "$PSScriptRoot\lib\Terminal\WtBuilder.ps1"

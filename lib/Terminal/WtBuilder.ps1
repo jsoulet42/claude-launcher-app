@@ -106,13 +106,14 @@ function Build-WtPanel {
         $initialCommand = Resolve-InitialCommand -Template $initialCommand -Context $context
     }
 
-    # --- Construction du titre ---
+    # --- Construction du titre (avec branche via GitInfo) ---
     $projectName = if ($Project.ContainsKey('name') -and -not [string]::IsNullOrWhiteSpace($Project.name)) {
         $Project.name
     } else {
         $slug
     }
-    $titleRaw = "$projectName — $command"
+    $branch = Get-GitBranchName -Path $Project.path
+    $titleRaw = Get-GitDynamicTitle -ProjectName $projectName -Branch $branch -Command $command
     $titleEscaped = Protect-WtArgument -Value $titleRaw
 
     # --- Normalisation et echappement du chemin (/ -> \) ---

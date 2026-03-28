@@ -42,21 +42,11 @@ function Get-InitialCommandContext {
         'unknown'
     }
 
-    # Branche git
-    $branch = 'no-branch'
+    # Branche git (via module central GitInfo.ps1)
     $projectPath = $Project.path
-    if ($projectPath -and (Test-Path -Path (Join-Path $projectPath '.git'))) {
-        try {
-            $gitResult = & git -C $projectPath rev-parse --abbrev-ref HEAD 2>$null
-            if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($gitResult)) {
-                $branch = $gitResult.Trim()
-            }
-        } catch {
-            Write-Log -Level 'WARN' -Source 'InitialCommands' -Message "Git branch resolution failed for '$projectPath': $($_.Exception.Message)"
-        }
-    }
-
-    if ($branch -eq 'no-branch') {
+    $branch = Get-GitBranchName -Path $projectPath
+    if ($branch -eq 'unknown') {
+        $branch = 'no-branch'
         Write-Log -Level 'WARN' -Source 'InitialCommands' -Message "Branch fallback 'no-branch' for project '$ProjectSlug' (path: $projectPath)"
     }
 

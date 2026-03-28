@@ -88,7 +88,7 @@ function New-TuiLayout {
         $projectList = New-ProjectListView -Config $Config -BodyView $body -Themes $Themes
     }
 
-    # Determiner le gitContext pour les suggestions intelligentes
+    # Determiner le gitContext pour les suggestions intelligentes (via GitInfo.ps1)
     $gitCtx = $null
     $lastHistory = Get-LaunchHistory -Limit 1
     if ($lastHistory -and $lastHistory.Count -gt 0 -and $lastHistory[0].project) {
