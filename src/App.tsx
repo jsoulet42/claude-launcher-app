@@ -1,25 +1,29 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useConfigStore } from './stores/config';
+import { useTerminalsStore } from './stores/terminals';
+import { useTauriEvent } from './hooks/useTauriEvent';
 import { AppLayout } from './components/AppLayout';
+import { TabBar } from './components/TabBar';
+import { SplitLayout } from './components/SplitLayout';
+import type { TerminalExitEvent, TerminalErrorEvent } from './types/ipc';
 import './App.css';
 
 function WelcomeScreen() {
-  const config = useConfigStore((s) => s.config);
-  const presets = config ? Object.entries(config.presets) : [];
-  const defaultPreset = presets.length > 0 ? presets[0] : null;
+  const createWorkspace = useTerminalsStore((s) => s.createWorkspace);
 
   return (
     <div className="welcome">
       <div className="welcome-content">
         <p className="welcome-message">Aucun terminal ouvert</p>
         <p className="welcome-hint">
-          Choisissez un projet et un preset dans la barre laterale pour commencer
+          Cliquez sur [+] ou le bouton ci-dessous pour lancer un terminal
         </p>
-        {defaultPreset && (
-          <button className="welcome-action" disabled>
-            Lancer {defaultPreset[1].name}
-          </button>
-        )}
+        <button
+          className="welcome-action"
+          onClick={() => createWorkspace()}
+        >
+          Lancer un terminal
+        </button>
       </div>
     </div>
   );
@@ -52,6 +56,55 @@ function ErrorScreen({ message }: { message: string }) {
   );
 }
 
+function TerminalArea() {
+  const workspaces = useTerminalsStore((s) => s.workspaces);
+  const activeWorkspaceId = useTerminalsStore((s) => s.activeWorkspaceId);
+  const updateTerminalStatus = useTerminalsStore(
+    (s) => s.updateTerminalStatus
+  );
+
+  // Global listener: update terminal status on exit
+  const handleExit = useCallback(
+    (payload: TerminalExitEvent) => {
+      updateTerminalStatus(payload.id, 'exited');
+    },
+    [updateTerminalStatus]
+  );
+  useTauriEvent<TerminalExitEvent>('terminal:exit', handleExit);
+
+  // Global listener: update terminal status on error
+  const handleError = useCallback(
+    (payload: TerminalErrorEvent) => {
+      updateTerminalStatus(payload.id, 'error');
+    },
+    [updateTerminalStatus]
+  );
+  useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
+
+  if (workspaces.length === 0) {
+    return <WelcomeScreen />;
+  }
+
+  return (
+    <>
+      <TabBar />
+      <div className="terminal-area">
+        {workspaces.map((ws) => (
+          <div
+            key={ws.id}
+            className="workspace-container"
+            style={{
+              display: ws.id === activeWorkspaceId ? 'flex' : 'none',
+            }}
+          >
+            <SplitLayout node={ws.layout} workspaceId={ws.id} />
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function App() {
   const { loading, error, loadConfig } = useConfigStore();
 
@@ -77,7 +130,7 @@ function App() {
 
   return (
     <AppLayout>
-      <WelcomeScreen />
+      <TerminalArea />
     </AppLayout>
   );
 }

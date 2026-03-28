@@ -93,6 +93,22 @@
   color: var(--accent-yellow);
 }
 
+/* Terminal area (fills main content) */
+.terminal-area {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Welcome screen (empty state inside AppLayout) */
 .welcome {
   display: flex;

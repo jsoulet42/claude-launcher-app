@@ -1,0 +1,110 @@
+.terminal-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.terminal-pane-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 24px;
+  padding: 0 var(--space-2);
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-primary);
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.terminal-pane-shell {
+  font-weight: 600;
+}
+
+.terminal-pane-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.terminal-pane-status--running {
+  background: var(--accent-green);
+}
+
+.terminal-pane-status--exited {
+  background: var(--accent-red);
+}
+
+.terminal-pane-status--error {
+  background: var(--accent-yellow);
+}
+
+.terminal-pane-cwd {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.terminal-pane-split-wrapper {
+  position: relative;
+}
+
+.terminal-pane-split,
+.terminal-pane-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: var(--font-size-xs);
+  border-radius: var(--radius-sm);
+  line-height: 1;
+}
+
+.terminal-pane-split:hover,
+.terminal-pane-close:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.terminal-pane-split-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-modal);
+  overflow: hidden;
+}
+
+.terminal-pane-split-menu button {
+  display: block;
+  width: 100%;
+  padding: var(--space-1) var(--space-3);
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.terminal-pane-split-menu button:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.terminal-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
