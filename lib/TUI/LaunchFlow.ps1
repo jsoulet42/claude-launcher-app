@@ -230,7 +230,7 @@ function Invoke-PresetLaunch {
         Start-Sleep -Milliseconds 500
         Write-Log -Level 'INFO' -Source 'LaunchFlow' -Message "Workspace launched successfully"
 
-        # Tracker le lancement dans l'historique smart-presets
+        # Tracker le lancement dans l'historique (HistoryTracker)
         try {
             $trackPresetSlug = $ResolvedPreset.name
             # Retrouver le slug du preset (pas le name) via le config
@@ -240,21 +240,18 @@ function Invoke-PresetLaunch {
                     break
                 }
             }
-            $trackProjectSlug = ''
-            $trackBranch = ''
-            if ($ResolvedPreset.panels -and $ResolvedPreset.panels.Count -gt 0) {
-                $firstProjSlug = $ResolvedPreset.panels[0].project
-                if ($firstProjSlug -and $firstProjSlug -ne '{{auto}}') {
-                    $trackProjectSlug = $firstProjSlug
-                    if ($Config.projects.ContainsKey($firstProjSlug)) {
-                        $gitInfo = Get-ProjectGitInfo -Path $Config.projects[$firstProjSlug].path
-                        if ($gitInfo.IsGit) {
-                            $trackBranch = $gitInfo.Branch
-                        }
+            $trackProjectSlugs = @($ResolvedPreset.panels | ForEach-Object { $_.project } | Where-Object { $_ -and $_ -ne '{{auto}}' } | Select-Object -Unique)
+            $trackBranches = @{}
+            foreach ($slug in $trackProjectSlugs) {
+                if ($Config.projects.ContainsKey($slug)) {
+                    $gitInfo = Get-ProjectGitInfo -Path $Config.projects[$slug].path
+                    if ($gitInfo.IsGit) {
+                        $trackBranches[$slug] = $gitInfo.Branch
                     }
                 }
             }
-            Add-LaunchEntry -PresetSlug $trackPresetSlug -ProjectSlug $trackProjectSlug -GitBranch $trackBranch
+            $trackLayout = if ($ResolvedPreset.layout) { $ResolvedPreset.layout } else { '' }
+            Add-LaunchEntry -PresetSlug $trackPresetSlug -ProjectSlugs $trackProjectSlugs -Layout $trackLayout -GitBranches $trackBranches
         } catch {
             Write-Log -Level 'WARN' -Source 'LaunchFlow' -Message "Failed to track launch: $($_.Exception.Message)"
         }

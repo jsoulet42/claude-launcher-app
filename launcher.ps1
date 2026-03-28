@@ -11,6 +11,10 @@
     ./launcher.ps1 focus -Project easysap   # Resout {{auto}} avec le projet easysap
     ./launcher.ps1 daily -WhatIf            # Affiche la commande sans lancer
     ./launcher.ps1 -Init                    # Cree un config.json par defaut
+    ./launcher.ps1 -Restore                 # Restaure la derniere session
+    ./launcher.ps1 -ListSessions            # Affiche les 10 dernieres sessions
+    ./launcher.ps1 last                     # Relance le dernier preset utilise
+    ./launcher.ps1 -History                 # Affiche les 10 derniers lancements
 #>
 
 param(
@@ -23,7 +27,13 @@ param(
 
     [switch]$WhatIf,
 
-    [switch]$Init
+    [switch]$Init,
+
+    [switch]$Restore,
+
+    [switch]$ListSessions,
+
+    [switch]$History
 )
 
 # --- Logger (PREMIER import — avant tout autre module) ---
@@ -37,6 +47,8 @@ Write-Log -Level 'INFO' -Source 'Launcher' -Message "Claude Launcher started (ar
 . "$PSScriptRoot\lib\Config\ConfigLoader.ps1"
 . "$PSScriptRoot\lib\Terminal\WtBuilder.ps1"
 # Note: InitialCommands.ps1 est charge via WtBuilder.ps1 (dot-source en cascade)
+. "$PSScriptRoot\lib\Core\HistoryTracker.ps1"
+. "$PSScriptRoot\lib\Core\SessionManager.ps1"
 
 # --- Fonctions internes ---
 
@@ -117,7 +129,69 @@ function Resolve-AutoPanels {
 
 # --- Main ---
 
-# 0. Mode Init (avant chargement config)
+# 0a. Mode ListSessions (avant chargement config)
+if ($ListSessions) {
+    try {
+        Initialize-SessionManager -SessionDir (Join-Path $PSScriptRoot 'sessions')
+        $sessions = Get-SessionList -Limit 10
+        if ($sessions.Count -eq 0) {
+            Write-Host "Aucune session sauvegardee." -ForegroundColor Yellow
+            exit 0
+        }
+        Write-Host ""
+        Write-Host "Sessions recentes :" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "  #   Date                 Preset          Panneaux" -ForegroundColor Cyan
+        Write-Host "  --- -------------------- --------------- --------" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $sessions.Count; $i++) {
+            $s = $sessions[$i]
+            $num = ($i + 1).ToString().PadLeft(3)
+            $ts = $s.timestamp.PadRight(20)
+            $pr = $s.preset.PadRight(15)
+            Write-Host "  $num $ts $pr $($s.panelCount)"
+        }
+        Write-Host ""
+        exit 0
+    } catch {
+        Write-LogError -Source 'Launcher' -Message "ListSessions failed" -ErrorRecord $_
+        Write-LauncherError $_.Exception.Message
+        exit 1
+    }
+}
+
+# 0b. Mode History (avant chargement config)
+if ($History) {
+    try {
+        Initialize-HistoryTracker -LogDir (Join-Path $PSScriptRoot 'logs')
+        $entries = Get-LaunchHistory -Limit 10
+        if ($entries.Count -eq 0) {
+            Write-Host "Aucun lancement enregistre." -ForegroundColor Yellow
+            exit 0
+        }
+        Write-Host ""
+        Write-Host "Derniers lancements :" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "  #   Date                 Preset          Projets" -ForegroundColor Cyan
+        Write-Host "  --- -------------------- --------------- -------" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $entries.Count; $i++) {
+            $e = $entries[$i]
+            $num = ($i + 1).ToString().PadLeft(3)
+            $ts = if ($e.timestamp -is [datetime]) { $e.timestamp.ToString('yyyy-MM-ddTHH:mm:ss') } else { $e.timestamp }
+            $ts = $ts.PadRight(20)
+            $pr = $e.preset.PadRight(15)
+            $projs = if ($e.projects) { ($e.projects -join ', ') } else { '' }
+            Write-Host "  $num $ts $pr $projs"
+        }
+        Write-Host ""
+        exit 0
+    } catch {
+        Write-LogError -Source 'Launcher' -Message "History failed" -ErrorRecord $_
+        Write-LauncherError $_.Exception.Message
+        exit 1
+    }
+}
+
+# 0c. Mode Init (avant chargement config)
 if ($Init) {
     try {
         $null = New-LauncherConfig -Path $ConfigPath
@@ -140,7 +214,71 @@ try {
     exit 1
 }
 
-# 2. Mode TUI
+# 2. Mode Restore
+if ($Restore) {
+    try {
+        Initialize-SessionManager -SessionDir (Join-Path $PSScriptRoot 'sessions')
+        $lastSession = Get-LastSession
+        if (-not $lastSession) {
+            Write-LauncherError "Aucune session sauvegardee. Lancez d'abord un preset."
+            exit 1
+        }
+
+        # Afficher preview
+        Write-Host ""
+        Write-Host "Restauration de la derniere session :" -ForegroundColor Green
+        Write-Host "  Preset  : $($lastSession.preset)" -ForegroundColor Cyan
+        $sessionDate = if ($lastSession.timestamp -is [datetime]) { $lastSession.timestamp.ToString('yyyy-MM-dd HH:mm:ss') } else { $lastSession.timestamp }
+        Write-Host "  Date    : $sessionDate" -ForegroundColor Cyan
+        Write-Host "  Panneaux: $($lastSession.panels.Count)" -ForegroundColor Cyan
+        for ($i = 0; $i -lt $lastSession.panels.Count; $i++) {
+            $p = $lastSession.panels[$i]
+            $idx = $i + 1
+            $branchInfo = if ($p.branch) { " ($($p.branch))" } else { '' }
+            Write-Host "    [$idx] $($p.project)$branchInfo | $($p.command)"
+        }
+        Write-Host ""
+
+        $wtCommand = Restore-Session -Session $lastSession -Config $config
+        $wtArgs = $wtCommand -replace '^wt\.exe\s*', ''
+        Start-Process wt.exe -ArgumentList $wtArgs
+        Write-LauncherSuccess "Restauration en cours..."
+        exit 0
+    } catch {
+        Write-LogError -Source 'Launcher' -Message "Restore failed" -ErrorRecord $_
+        Write-LauncherError $_.Exception.Message
+        exit 1
+    }
+}
+
+# 3. Mode Last (relancer le dernier preset)
+if ($Preset -eq 'last') {
+    try {
+        Initialize-HistoryTracker -LogDir (Join-Path $PSScriptRoot 'logs')
+        $lastLaunch = Get-LastLaunch
+        if (-not $lastLaunch) {
+            Write-LauncherError "Aucun lancement enregistre. Lancez d'abord un preset."
+            exit 1
+        }
+
+        $lastPresetName = $lastLaunch.preset
+        if (-not $config.presets.ContainsKey($lastPresetName)) {
+            Write-LauncherError "Le preset '$lastPresetName' n'existe plus dans config.json."
+            exit 1
+        }
+
+        Write-Log -Level 'INFO' -Source 'Launcher' -Message "Mode last: relaunching preset '$lastPresetName'"
+
+        # Reutiliser le flow normal en injectant le preset
+        $Preset = $lastPresetName
+    } catch {
+        Write-LogError -Source 'Launcher' -Message "Last mode failed" -ErrorRecord $_
+        Write-LauncherError $_.Exception.Message
+        exit 1
+    }
+}
+
+# 4. Mode TUI
 if ($Preset -eq 'tui') {
     try {
         . "$PSScriptRoot\lib\TUI\DepsManager.ps1"
@@ -151,6 +289,9 @@ if ($Preset -eq 'tui') {
         . "$PSScriptRoot\lib\Scanner\ProjectScanner.ps1"
         . "$PSScriptRoot\lib\Core\SmartPresets.ps1"
         . "$PSScriptRoot\lib\TUI\App.ps1"
+        # Initialiser HistoryTracker + SmartPresets pour le TUI
+        Initialize-HistoryTracker -LogDir (Join-Path $PSScriptRoot 'logs')
+        Initialize-SmartPresets
         # Le lancement est gere en interne par Start-LaunchFlow (modales TUI).
         # Start-LauncherTui retourne $null quand l'utilisateur quitte (Q).
         Start-LauncherTui -Config $config | Out-Null
@@ -162,7 +303,7 @@ if ($Preset -eq 'tui') {
     exit 0
 }
 
-# 3. Resoudre le preset
+# 5. Resoudre le preset
 $presetName = $null
 if (-not [string]::IsNullOrWhiteSpace($Preset)) {
     $presetName = $Preset
@@ -186,7 +327,7 @@ if (-not $config.presets.ContainsKey($presetName)) {
 
 $presetObj = $config.presets[$presetName]
 
-# 4. Resoudre {{auto}}
+# 6. Resoudre {{auto}}
 $hasAuto = $presetObj.panels | Where-Object { $_.project -eq '{{auto}}' }
 
 if ($hasAuto) {
@@ -204,13 +345,13 @@ if ($hasAuto) {
     $presetObj = Resolve-AutoPanels -Preset $presetObj -ProjectSlug $Project
 }
 
-# 5. Resoudre le layout
+# 7. Resoudre le layout
 $layout = $config.layouts[$presetObj.layout]
 
-# 6. Afficher le recap
+# 8. Afficher le recap
 Show-WorkspacePreview -Preset $presetObj -Projects $config.projects
 
-# 7. Mode WhatIf
+# 9. Mode WhatIf
 if ($WhatIf) {
     try {
         $cmd = Build-WtCommand -Preset $presetObj -Layout $layout -Projects $config.projects
@@ -226,9 +367,24 @@ if ($WhatIf) {
     exit 0
 }
 
-# 8. Construire et lancer
+# 10. Construire, sauvegarder et lancer
 try {
     $cmd = Build-WtCommand -Preset $presetObj -Layout $layout -Projects $config.projects
+
+    # Sauvegarder la session juste avant le lancement
+    Initialize-SessionManager -SessionDir (Join-Path $PSScriptRoot 'sessions')
+    Save-Session -PresetName $presetName -Preset $presetObj -Layout $layout -Projects $config.projects
+
+    # Tracker dans l'historique (HistoryTracker)
+    Initialize-HistoryTracker -LogDir (Join-Path $PSScriptRoot 'logs')
+    $projectSlugs = @($presetObj.panels | ForEach-Object { $_.project } | Where-Object { $_ -and $_ -ne '{{auto}}' } | Select-Object -Unique)
+    $gitBranches = @{}
+    foreach ($slug in $projectSlugs) {
+        $proj = $config.projects[$slug]
+        if ($proj) { $gitBranches[$slug] = Get-GitBranchName -Path $proj.path }
+    }
+    Add-LaunchEntry -PresetSlug $presetName -ProjectSlugs $projectSlugs -Layout $presetObj.layout -GitBranches $gitBranches
+
     $wtArgs = $cmd -replace '^wt\.exe\s*', ''
     Start-Process wt.exe -ArgumentList $wtArgs
     Write-LauncherSuccess "Lancement..."
