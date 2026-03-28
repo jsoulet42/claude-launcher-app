@@ -16,13 +16,11 @@ interface ProjectsState {
   scannedProjects: ScannedProject[];
 
   selectedProject: string | null;
-  selectedPreset: string | null;
   scanning: boolean;
   scanMessage: string | null;
   error: string | null;
 
   setSelectedProject: (slug: string | null) => void;
-  setSelectedPreset: (slug: string | null) => void;
   fetchGitInfo: (slug: string, path: string, includeCommits?: boolean) => Promise<void>;
   fetchAllGitInfo: (projects: Record<string, Project>) => Promise<void>;
   scanProjects: (config: ConfigData) => Promise<void>;
@@ -37,14 +35,11 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
   stackTypes: {},
   scannedProjects: [],
   selectedProject: null,
-  selectedPreset: null,
   scanning: false,
   scanMessage: null,
   error: null,
 
-  setSelectedProject: (slug) => set({ selectedProject: slug, selectedPreset: null }),
-
-  setSelectedPreset: (slug) => set({ selectedPreset: slug }),
+  setSelectedProject: (slug) => set({ selectedProject: slug }),
 
   fetchGitInfo: async (slug, path, includeCommits = false) => {
     try {

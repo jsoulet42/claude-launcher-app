@@ -1,0 +1,217 @@
+/* PresetDetail — main content panel (mirrors ProjectDetail structure) */
+
+.preset-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6);
+  flex: 1;
+  overflow-y: auto;
+  max-width: 700px;
+  margin: 0 auto;
+  width: 100%;
+  position: relative;
+}
+
+/* Close button */
+.preset-detail-close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--font-size-lg);
+  cursor: pointer;
+  padding: var(--space-1);
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+
+.preset-detail-close:hover {
+  color: var(--text-primary);
+}
+
+/* Header */
+.preset-detail-header {
+  border-top: 4px solid var(--accent);
+  padding-top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.preset-detail-name {
+  font-size: var(--font-size-xl);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.preset-detail-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.preset-detail-layout-badge {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  align-self: flex-start;
+  font-family: var(--font-mono);
+}
+
+.preset-detail-layout-error {
+  color: var(--accent-red);
+  font-size: var(--font-size-sm);
+  padding: var(--space-4);
+  border: 1px dashed var(--accent-red);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+/* Preview */
+.preset-detail-preview {
+  align-self: center;
+}
+
+/* Panels section */
+.preset-detail-panels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.preset-detail-section-title {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.preset-detail-panels-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.preset-detail-panels-table th {
+  text-align: left;
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.preset-detail-panels-table td {
+  padding: var(--space-2);
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.preset-detail-panels-table td:first-child {
+  width: 32px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.preset-detail-panel-project {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.preset-detail-panel-color {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.preset-detail-panel-auto {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.preset-detail-panel-cmd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  background: var(--bg-surface);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+}
+
+/* Focus project selector */
+.preset-detail-focus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.preset-detail-focus-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.preset-detail-focus-select {
+  flex: 1;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.preset-detail-focus-select:hover,
+.preset-detail-focus-select:focus {
+  border-color: var(--border-accent);
+  outline: none;
+}
+
+.preset-detail-focus-select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+/* Launch button */
+.preset-detail-launch {
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-6);
+  background: var(--accent);
+  color: var(--bg-primary);
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.preset-detail-launch:hover {
+  opacity: var(--opacity-hover);
+}
+
+.preset-detail-launch:disabled {
+  opacity: var(--opacity-disabled);
+  cursor: not-allowed;
+}
+
+/* Error state */
+.preset-detail-error {
+  color: var(--accent-red);
+  font-size: var(--font-size-base);
+  text-align: center;
+  padding: var(--space-8);
+}

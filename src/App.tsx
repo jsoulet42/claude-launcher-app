@@ -8,6 +8,7 @@ import { AppLayout } from './components/AppLayout';
 import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
 import { ProjectDetail } from './components/ProjectDetail';
+import { PresetDetail } from './components/PresetDetail';
 import type { TerminalExitEvent, TerminalErrorEvent } from './types/ipc';
 import './App.css';
 
@@ -67,6 +68,8 @@ function TerminalArea() {
   );
   const selectedProject = useProjectsStore((s) => s.selectedProject);
   const showProjectDetail = useUiStore((s) => s.showProjectDetail);
+  const showPresetDetail = useUiStore((s) => s.showPresetDetail);
+  const selectedPreset = useUiStore((s) => s.selectedPreset);
 
   // Global listener: update terminal status on exit
   const handleExit = useCallback(
@@ -85,6 +88,20 @@ function TerminalArea() {
     [updateTerminalStatus]
   );
   useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
+
+  // Priority: PresetDetail > ProjectDetail > Terminals > Welcome
+  // Preset detail overlay
+  if (showPresetDetail && selectedPreset) {
+    if (workspaces.length === 0) {
+      return <PresetDetail key={selectedPreset} presetSlug={selectedPreset} />;
+    }
+    return (
+      <>
+        <TabBar />
+        <PresetDetail key={selectedPreset} presetSlug={selectedPreset} />
+      </>
+    );
+  }
 
   // Show project detail when no workspaces and a project is selected
   if (workspaces.length === 0 && selectedProject) {

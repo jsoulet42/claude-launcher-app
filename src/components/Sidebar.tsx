@@ -1,14 +1,11 @@
 import { useUiStore } from '../stores/ui';
-import { useConfigStore } from '../stores/config';
 import { SidebarSection } from './SidebarSection';
 import { ProjectList } from './ProjectList';
+import { PresetList } from './PresetList';
 import './Sidebar.css';
 
 export function Sidebar() {
   const { sidebarExpanded, activeSidebarSection, toggleSidebar, setActiveSection } = useUiStore();
-  const config = useConfigStore((s) => s.config);
-
-  const presets = config ? Object.entries(config.presets) : [];
 
   return (
     <aside className={`sidebar ${sidebarExpanded ? 'sidebar--expanded' : 'sidebar--collapsed'}`}>
@@ -38,14 +35,7 @@ export function Sidebar() {
           active={activeSidebarSection === 'presets'}
           onActivate={() => setActiveSection('presets')}
         >
-          <ul className="sidebar-list">
-            {presets.map(([slug, preset]) => (
-              <li key={slug} className="sidebar-item">
-                <span className="sidebar-item-arrow">&#x25B8;</span>
-                <span className="sidebar-item-label">{preset.name}</span>
-              </li>
-            ))}
-          </ul>
+          <PresetList expanded={sidebarExpanded} />
         </SidebarSection>
 
         <SidebarSection

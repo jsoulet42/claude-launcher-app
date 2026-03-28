@@ -1,0 +1,107 @@
+/* PresetList — sidebar preset items */
+
+.preset-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.preset-list-items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.preset-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-6);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  color: var(--text-secondary);
+}
+
+.preset-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.preset-item--selected {
+  background: var(--bg-selected);
+  color: var(--text-primary);
+}
+
+.preset-item-icon {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+  padding-top: 1px;
+  font-family: var(--font-mono);
+}
+
+.preset-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.preset-item-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.preset-item-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-item-default {
+  color: var(--accent-yellow);
+  font-size: var(--font-size-xs);
+  flex-shrink: 0;
+}
+
+.preset-item-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preset-item-panels {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Empty state */
+.preset-list-empty {
+  padding: var(--space-2) var(--space-6);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* Collapsed mode */
+.preset-list--collapsed .preset-item {
+  padding: var(--space-1);
+  justify-content: center;
+}
+
+.preset-list--collapsed .preset-item-info {
+  display: none;
+}
+
+.preset-list--collapsed .preset-item-icon {
+  width: auto;
+}

@@ -13,7 +13,7 @@ interface ProjectDetailProps {
 
 export function ProjectDetail({ projectSlug }: ProjectDetailProps) {
   const config = useConfigStore((s) => s.config);
-  const { selectedPreset, setSelectedPreset } = useProjectsStore();
+  const { selectedPreset, setSelectedPreset } = useUiStore();
   const createWorkspace = useTerminalsStore((s) => s.createWorkspace);
   const createTerminalInWorkspace = useTerminalsStore((s) => s.createTerminalInWorkspace);
   const setActiveWorkspace = useTerminalsStore((s) => s.setActiveWorkspace);
