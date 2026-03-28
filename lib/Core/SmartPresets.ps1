@@ -152,7 +152,7 @@ function Get-PresetSuggestions {
 
     # Tri : score desc, puis defaut en premier a score egal, puis alphabetique
     $results = @($results | Sort-Object {
-        $sortKey = '{0:D5}_{1}_{2}' -f (99999 - $_.Score), $(if ($_.Slug -eq $defaultPreset) { '0' } else { '1' }), $_.Slug
+        $sortKey = '{0:D5}_{1}_{2}' -f [int](99999 - $_.Score), $(if ($_.Slug -eq $defaultPreset) { '0' } else { '1' }), $_.Slug
         $sortKey
     })
 
