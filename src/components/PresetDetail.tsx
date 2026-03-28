@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useConfigStore } from '../stores/config';
 import { useProjectsStore } from '../stores/projects';
-import { useTerminalsStore } from '../stores/terminals';
+import { useLaunchStore } from '../stores/launch';
 import { useUiStore } from '../stores/ui';
 import { LayoutPreview } from './LayoutPreview';
 import type { ResolvedPanel } from './LayoutPreview';
@@ -14,13 +14,11 @@ interface PresetDetailProps {
 export function PresetDetail({ presetSlug }: PresetDetailProps) {
   const config = useConfigStore((s) => s.config);
   const scannedProjects = useProjectsStore((s) => s.scannedProjects);
-  const createWorkspace = useTerminalsStore((s) => s.createWorkspace);
-  const createTerminalInWorkspace = useTerminalsStore((s) => s.createTerminalInWorkspace);
-  const setActiveWorkspace = useTerminalsStore((s) => s.setActiveWorkspace);
+  const launchPreset = useLaunchStore((s) => s.launchPreset);
+  const launching = useLaunchStore((s) => s.launching);
   const hidePresetDetail = useUiStore((s) => s.hidePresetDetail);
 
   const [focusProject, setFocusProject] = useState<string | null>(null);
-  const [launching, setLaunching] = useState(false);
 
   if (!config) {
     return (
@@ -73,58 +71,11 @@ export function PresetDetail({ presetSlug }: PresetDetailProps) {
   const handleLaunch = async () => {
     if (!canLaunch || launching) return;
 
-    setLaunching(true);
     try {
-      const panels = preset.panels.map((panel) => {
-        const isAuto = !panel.project || panel.project === '{{auto}}';
-        const resolvedSlug = isAuto ? focusProject : panel.project;
-        const project = resolvedSlug ? config.projects[resolvedSlug] : null;
-        const scanned = resolvedSlug
-          ? scannedProjects.find((sp) => sp.slug === resolvedSlug)
-          : null;
-        const cwd = project?.path ?? scanned?.path;
-        const shell = panel.command
-          ?? project?.default_command
-          ?? scanned?.default_command
-          ?? 'pwsh';
-
-        return { cwd, shell };
-      });
-
-      const splits = layout?.splits ?? [];
-      const firstPanel = panels[0];
-      const wsName = focusProject
-        ? (config.projects[focusProject]?.name ?? preset.name)
-        : preset.name;
-      const wsColor = focusProject
-        ? config.projects[focusProject]?.color
-        : undefined;
-
-      const wsId = await createWorkspace(
-        wsName,
-        wsColor,
-        { shell: firstPanel?.shell, cwd: firstPanel?.cwd }
-      );
-
-      for (let i = 1; i < panels.length; i++) {
-        const p = panels[i];
-        const splitDef = splits[i - 1] ?? 'H';
-        const direction = splitDef.startsWith('V')
-          ? ('vertical' as const)
-          : ('horizontal' as const);
-        await createTerminalInWorkspace(wsId, {
-          cwd: p.cwd,
-          shell: p.shell,
-          direction,
-        });
-      }
-
-      setActiveWorkspace(wsId);
+      await launchPreset(presetSlug, focusProject, config, scannedProjects);
       hidePresetDetail();
     } catch (e) {
       console.error('Failed to launch preset workspace:', e);
-    } finally {
-      setLaunching(false);
     }
   };
 

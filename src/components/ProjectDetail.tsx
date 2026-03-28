@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useConfigStore } from '../stores/config';
 import { useProjectsStore } from '../stores/projects';
-import { useTerminalsStore } from '../stores/terminals';
+import { useLaunchStore } from '../stores/launch';
 import { useUiStore } from '../stores/ui';
 import type { GitInfo, Project } from '../types/ipc';
 import './ProjectDetail.css';
@@ -14,14 +14,13 @@ interface ProjectDetailProps {
 export function ProjectDetail({ projectSlug }: ProjectDetailProps) {
   const config = useConfigStore((s) => s.config);
   const { selectedPreset, setSelectedPreset } = useUiStore();
-  const createWorkspace = useTerminalsStore((s) => s.createWorkspace);
-  const createTerminalInWorkspace = useTerminalsStore((s) => s.createTerminalInWorkspace);
-  const setActiveWorkspace = useTerminalsStore((s) => s.setActiveWorkspace);
+  const scannedProjects = useProjectsStore((s) => s.scannedProjects);
+  const launchPreset = useLaunchStore((s) => s.launchPreset);
+  const launching = useLaunchStore((s) => s.launching);
   const hideDetail = useUiStore((s) => s.hideDetail);
 
   const [gitInfo, setGitInfo] = useState<GitInfo | null>(null);
   const [gitError, setGitError] = useState<string | null>(null);
-  const [launching, setLaunching] = useState(false);
 
   // Resolve project — either from config or scanned
   const configProject: Project | undefined = config?.projects[projectSlug];
@@ -80,59 +79,13 @@ export function ProjectDetail({ projectSlug }: ProjectDetailProps) {
   const presets = Object.entries(config.presets);
 
   const handleLaunch = async () => {
-    if (!selectedPreset || launching) return;
+    if (!selectedPreset || launching || !config) return;
 
-    const preset = config.presets[selectedPreset];
-    if (!preset) return;
-
-    setLaunching(true);
     try {
-      const panels = preset.panels.map((panel) => {
-        // Resolve {{auto}} → current project slug
-        const resolvedProjectSlug = panel.project === '{{auto}}'
-          ? projectSlug
-          : panel.project;
-
-        const resolvedProject = resolvedProjectSlug
-          ? config.projects[resolvedProjectSlug]
-          : null;
-
-        return {
-          cwd: resolvedProject?.path ?? project.path,
-          shell: panel.command || resolvedProject?.default_command || project.default_command,
-        };
-      });
-
-      // Create workspace with first panel opts
-      const firstPanel = panels[0];
-      const wsId = await createWorkspace(
-        project.name,
-        project.color,
-        { shell: firstPanel?.shell, cwd: firstPanel?.cwd }
-      );
-
-      // Resolve layout splits for direction hints
-      const layoutDef = config.layouts[preset.layout];
-      const splits = layoutDef?.splits ?? [];
-
-      // Create remaining terminals sequentially, inserting into layout tree
-      for (let i = 1; i < panels.length; i++) {
-        const p = panels[i];
-        const splitChar = splits[i - 1] ?? 'H';
-        const direction = splitChar.startsWith('V') ? 'vertical' as const : 'horizontal' as const;
-        await createTerminalInWorkspace(wsId, {
-          cwd: p.cwd,
-          shell: p.shell,
-          direction,
-        });
-      }
-
-      setActiveWorkspace(wsId);
+      await launchPreset(selectedPreset, projectSlug, config, scannedProjects);
       hideDetail();
     } catch (e) {
       console.error('Failed to launch workspace:', e);
-    } finally {
-      setLaunching(false);
     }
   };
 
