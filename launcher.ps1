@@ -15,6 +15,7 @@
     ./launcher.ps1 -ListSessions            # Affiche les 10 dernieres sessions
     ./launcher.ps1 last                     # Relance le dernier preset utilise
     ./launcher.ps1 -History                 # Affiche les 10 derniers lancements
+    ./launcher.ps1 -DaemonStatus            # Affiche l'etat du daemon
 #>
 
 param(
@@ -33,7 +34,9 @@ param(
 
     [switch]$ListSessions,
 
-    [switch]$History
+    [switch]$History,
+
+    [switch]$DaemonStatus
 )
 
 # --- Logger (PREMIER import — avant tout autre module) ---
@@ -49,6 +52,7 @@ Write-Log -Level 'INFO' -Source 'Launcher' -Message "Claude Launcher started (ar
 # Note: InitialCommands.ps1 est charge via WtBuilder.ps1 (dot-source en cascade)
 . "$PSScriptRoot\lib\Core\HistoryTracker.ps1"
 . "$PSScriptRoot\lib\Core\SessionManager.ps1"
+. "$PSScriptRoot\lib\Core\Daemon.ps1"
 
 # --- Fonctions internes ---
 
@@ -129,7 +133,43 @@ function Resolve-AutoPanels {
 
 # --- Main ---
 
-# 0a. Mode ListSessions (avant chargement config)
+# 0a. Mode DaemonStatus (avant chargement config)
+if ($DaemonStatus) {
+    try {
+        Initialize-Daemon -SessionDir (Join-Path $PSScriptRoot 'sessions')
+        $status = Get-DaemonStatus
+        if (-not $status) {
+            Write-Host "Aucun daemon actif." -ForegroundColor Yellow
+            exit 0
+        }
+        Write-Host ""
+        Write-Host "Daemon status :" -ForegroundColor Green
+        Write-Host ""
+        $statusColor = if ($status.status -eq 'watching') { 'Cyan' } else { 'Yellow' }
+        Write-Host "  Status     : $($status.status)" -ForegroundColor $statusColor
+        Write-Host "  Daemon PID : $($status.daemon_pid)"
+        Write-Host "  WT PID     : $($status.wt_pid)"
+        $startedAt = if ($status.started_at -is [datetime]) { $status.started_at.ToString('yyyy-MM-dd HH:mm:ss') } else { $status.started_at }
+        Write-Host "  Started    : $startedAt"
+        $lastCheck = if ($status.last_check -is [datetime]) { $status.last_check.ToString('yyyy-MM-dd HH:mm:ss') } else { $status.last_check }
+        Write-Host "  Last check : $lastCheck"
+        if ($status.stopped_at) {
+            $stoppedAt = if ($status.stopped_at -is [datetime]) { $status.stopped_at.ToString('yyyy-MM-dd HH:mm:ss') } else { $status.stopped_at }
+            Write-Host "  Stopped    : $stoppedAt"
+        }
+        if ($status.session_file) {
+            Write-Host "  Session    : $($status.session_file)"
+        }
+        Write-Host ""
+        exit 0
+    } catch {
+        Write-LogError -Source 'Launcher' -Message "DaemonStatus failed" -ErrorRecord $_
+        Write-LauncherError $_.Exception.Message
+        exit 1
+    }
+}
+
+# 0b. Mode ListSessions (avant chargement config)
 if ($ListSessions) {
     try {
         Initialize-SessionManager -SessionDir (Join-Path $PSScriptRoot 'sessions')
@@ -241,7 +281,24 @@ if ($Restore) {
 
         $wtCommand = Restore-Session -Session $lastSession -Config $config
         $wtArgs = $wtCommand -replace '^wt\.exe\s*', ''
+
+        # Snapshot PID WT avant restore
+        $wtPidsBefore = @(Get-Process -Name WindowsTerminal -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+
         Start-Process wt.exe -ArgumentList $wtArgs
+
+        # Demarrer le daemon de surveillance
+        try {
+            Start-Sleep -Milliseconds 1500
+            Initialize-Daemon -SessionDir (Join-Path $PSScriptRoot 'sessions')
+            $wtPid = Find-WtPid -PidsBefore $wtPidsBefore
+            if ($wtPid -gt 0) {
+                Start-Daemon -WtPid $wtPid
+            }
+        } catch {
+            Write-Log -Level 'WARN' -Source 'Launcher' -Message "Daemon start after restore failed: $($_.Exception.Message)"
+        }
+
         Write-LauncherSuccess "Restauration en cours..."
         exit 0
     } catch {
@@ -373,7 +430,7 @@ try {
 
     # Sauvegarder la session juste avant le lancement
     Initialize-SessionManager -SessionDir (Join-Path $PSScriptRoot 'sessions')
-    Save-Session -PresetName $presetName -Preset $presetObj -Layout $layout -Projects $config.projects
+    $sessionFilePath = Save-Session -PresetName $presetName -Preset $presetObj -Layout $layout -Projects $config.projects
 
     # Tracker dans l'historique (HistoryTracker)
     Initialize-HistoryTracker -LogDir (Join-Path $PSScriptRoot 'logs')
@@ -386,7 +443,24 @@ try {
     Add-LaunchEntry -PresetSlug $presetName -ProjectSlugs $projectSlugs -Layout $presetObj.layout -GitBranches $gitBranches
 
     $wtArgs = $cmd -replace '^wt\.exe\s*', ''
+
+    # Snapshot des PID WT avant lancement (pour detecter le nouveau)
+    $wtPidsBefore = @(Get-Process -Name WindowsTerminal -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+
     Start-Process wt.exe -ArgumentList $wtArgs
+
+    # Demarrer le daemon de surveillance
+    try {
+        Start-Sleep -Milliseconds 1500
+        Initialize-Daemon -SessionDir (Join-Path $PSScriptRoot 'sessions')
+        $wtPid = Find-WtPid -PidsBefore $wtPidsBefore
+        if ($wtPid -gt 0) {
+            Start-Daemon -WtPid $wtPid -SessionFile $sessionFilePath
+        }
+    } catch {
+        Write-Log -Level 'WARN' -Source 'Launcher' -Message "Daemon start failed: $($_.Exception.Message)"
+    }
+
     Write-LauncherSuccess "Lancement..."
     exit 0
 } catch {
