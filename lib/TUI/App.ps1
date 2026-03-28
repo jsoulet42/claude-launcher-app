@@ -91,8 +91,8 @@ function New-TuiLayout {
     # Determiner le gitContext pour les suggestions intelligentes (via GitInfo.ps1)
     $gitCtx = $null
     $lastHistory = Get-LaunchHistory -Limit 1
-    if ($lastHistory -and $lastHistory.Count -gt 0 -and $lastHistory[0].project) {
-        $lastProjSlug = $lastHistory[0].project
+    if ($lastHistory -and $lastHistory.Count -gt 0 -and $lastHistory[0].projects -and $lastHistory[0].projects.Count -gt 0) {
+        $lastProjSlug = $lastHistory[0].projects[0]
         if ($Config.projects.ContainsKey($lastProjSlug)) {
             $projPath = $Config.projects[$lastProjSlug].path
             $gitInfo = Get-ProjectGitInfo -Path $projPath
