@@ -32,3 +32,59 @@ export interface Panel {
 export interface Layout {
   splits: string[];
 }
+
+// === Terminal IPC types (P16 — conpty-engine) ===
+
+export type TerminalStatus = 'running' | 'exited' | 'error';
+
+export interface TerminalInfo {
+  id: string;
+  shell: string;
+  cwd: string | null;
+  cols: number;
+  rows: number;
+  status: TerminalStatus;
+}
+
+// Command params
+export interface CreateTerminalParams {
+  shell?: string;
+  cwd?: string;
+  cols: number;
+  rows: number;
+}
+
+export interface CreateTerminalResult {
+  id: string;
+}
+
+export interface WriteTerminalParams {
+  id: string;
+  data: string;
+}
+
+export interface ResizeTerminalParams {
+  id: string;
+  cols: number;
+  rows: number;
+}
+
+export interface CloseTerminalParams {
+  id: string;
+}
+
+// Event payloads
+export interface TerminalOutputEvent {
+  id: string;
+  data: string;
+}
+
+export interface TerminalExitEvent {
+  id: string;
+  code: number;
+}
+
+export interface TerminalErrorEvent {
+  id: string;
+  error: string;
+}

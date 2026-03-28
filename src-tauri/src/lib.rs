@@ -1,7 +1,11 @@
 mod config;
+mod conpty;
 mod error;
+mod terminal;
 
 use config::ConfigData;
+use tauri::Manager;
+use terminal::TerminalManager;
 use tracing::info;
 
 #[tauri::command]
@@ -28,7 +32,22 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![get_config, get_app_version])
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let manager = TerminalManager::new(handle);
+            app.manage(manager);
+            info!("TerminalManager registered as managed state");
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            get_config,
+            get_app_version,
+            terminal::create_terminal,
+            terminal::write_terminal,
+            terminal::resize_terminal,
+            terminal::close_terminal,
+            terminal::list_terminals,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
