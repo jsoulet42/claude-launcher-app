@@ -100,6 +100,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .workspace-container {
@@ -107,6 +108,26 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+/* Active workspace is visible and takes full space */
+.workspace-active {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hidden workspaces: use visibility:hidden + position:absolute instead of
+   display:none. This keeps the container sized so xterm.js FitAddon works
+   correctly. display:none makes containers 0x0 which breaks FitAddon. */
+.workspace-hidden {
+  visibility: hidden;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  pointer-events: none;
 }
 
 /* Welcome screen (empty state inside AppLayout) */

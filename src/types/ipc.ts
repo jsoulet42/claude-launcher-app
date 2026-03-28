@@ -28,6 +28,7 @@ export interface Preset {
 export interface Panel {
   project?: string;
   command?: string;
+  initial_command?: string | null;
 }
 
 export interface Layout {

@@ -120,14 +120,14 @@ interface TerminalsState {
   activeWorkspaceId: string | null;
   terminals: Record<string, TerminalInfo>;
 
-  createWorkspace: (name?: string, color?: string, opts?: { shell?: string; cwd?: string }) => Promise<string>;
+  createWorkspace: (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => Promise<string>;
   closeWorkspace: (workspaceId: string) => Promise<void>;
   setActiveWorkspace: (workspaceId: string) => void;
   renameWorkspace: (workspaceId: string, name: string) => void;
 
   createTerminalInWorkspace: (
     workspaceId: string,
-    opts?: { shell?: string; cwd?: string; direction?: 'horizontal' | 'vertical' }
+    opts?: { shell?: string; cwd?: string; cols?: number; rows?: number; direction?: 'horizontal' | 'vertical' }
   ) => Promise<string>;
   splitPane: (
     workspaceId: string,
@@ -156,14 +156,17 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   activeWorkspaceId: null,
   terminals: {},
 
-  createWorkspace: async (name?: string, color?: string, opts?: { shell?: string; cwd?: string }) => {
+  createWorkspace: async (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
     const wsId = uuid();
     workspaceCounter++;
     const wsName = name || `Terminal ${workspaceCounter}`;
 
     const result = await invoke<CreateTerminalResult>('create_terminal', {
-      params: { shell: opts?.shell, cwd: opts?.cwd, cols: 80, rows: 24 },
+      params: { shell: opts?.shell, cwd: opts?.cwd, cols: opts?.cols ?? 80, rows: opts?.rows ?? 24 },
     });
+
+    const cols = opts?.cols ?? 120;
+    const rows = opts?.rows ?? 30;
 
     const pane: PaneNode = {
       id: uuid(),
@@ -175,8 +178,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       id: result.id,
       shell: opts?.shell || 'pwsh.exe',
       cwd: opts?.cwd || null,
-      cols: 80,
-      rows: 24,
+      cols,
+      rows,
       status: 'running',
     };
 
@@ -240,18 +243,21 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
 
   createTerminalInWorkspace: async (
     workspaceId: string,
-    opts?: { shell?: string; cwd?: string; direction?: 'horizontal' | 'vertical' }
+    opts?: { shell?: string; cwd?: string; cols?: number; rows?: number; direction?: 'horizontal' | 'vertical' }
   ) => {
     const state = get();
     const ws = state.workspaces.find((w) => w.id === workspaceId);
     if (!ws) return '';
 
+    const cols = opts?.cols ?? 120;
+    const rows = opts?.rows ?? 30;
+
     const result = await invoke<CreateTerminalResult>('create_terminal', {
       params: {
         shell: opts?.shell,
         cwd: opts?.cwd,
-        cols: 80,
-        rows: 24,
+        cols,
+        rows,
       },
     });
 
@@ -259,8 +265,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       id: result.id,
       shell: opts?.shell || 'pwsh.exe',
       cwd: opts?.cwd || null,
-      cols: 80,
-      rows: 24,
+      cols,
+      rows,
       status: 'running',
     };
 

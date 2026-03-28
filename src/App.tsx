@@ -129,10 +129,7 @@ function TerminalArea() {
         {workspaces.map((ws) => (
           <div
             key={ws.id}
-            className="workspace-container"
-            style={{
-              display: ws.id === activeWorkspaceId ? 'flex' : 'none',
-            }}
+            className={`workspace-container ${ws.id === activeWorkspaceId ? 'workspace-active' : 'workspace-hidden'}`}
           >
             <SplitLayout node={ws.layout} workspaceId={ws.id} />
           </div>

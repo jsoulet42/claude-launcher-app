@@ -259,14 +259,18 @@ impl TerminalManager {
         })?;
 
         // Take the reader handle — the thread will exit naturally when
-        // the ConPty is dropped (pipe closes, ReadFile returns 0).
-        // We don't join here to avoid blocking the IPC command.
+        // the console is closed (ReadFile returns 0/error).
         let _reader_handle = terminal.reader_handle.take();
 
-        // Get exit code before dropping the ConPty
+        // Get exit code before closing the console
         let code = terminal.conpty.exit_code().unwrap_or(-1);
 
-        // Drop terminal (and ConPty) explicitly
+        // Close the console BEFORE drop to unblock the reader thread.
+        // Without this, the reader thread holds an Arc<ConPty> and
+        // the ConPty Drop (which calls close_console) never runs.
+        terminal.conpty.close_console();
+
+        // Drop terminal explicitly
         drop(terminal);
 
         // Emit exit event
@@ -280,6 +284,21 @@ impl TerminalManager {
 
         tracing::info!("Terminal {} closed", id);
         Ok(())
+    }
+
+    /// Close all terminals. Called on app exit to prevent zombie processes.
+    pub fn close_all(&self) {
+        let ids: Vec<String> = {
+            let map = match self.terminals.lock() {
+                Ok(m) => m,
+                Err(_) => return,
+            };
+            map.keys().cloned().collect()
+        };
+        for id in &ids {
+            let _ = self.close(id);
+        }
+        tracing::info!("All terminals closed ({} total)", ids.len());
     }
 
     /// List all terminals with their current status.
@@ -355,6 +374,8 @@ fn spawn_reader(
         .name(format!("terminal-reader-{}", &id[..8]))
         .spawn(move || {
             let mut buf = [0u8; 4096];
+            let mut pending: Vec<u8> = Vec::new(); // incomplete UTF-8 bytes
+
             loop {
                 match conpty.read(&mut buf) {
                     Ok(0) => {
@@ -376,15 +397,31 @@ fn spawn_reader(
                         break;
                     }
                     Ok(n) => {
-                        tracing::debug!("Terminal {} read {} bytes", id, n);
-                        let data = String::from_utf8_lossy(&buf[..n]).to_string();
-                        let _ = app_handle.emit(
-                            "terminal:output",
-                            TerminalOutputEvent {
-                                id: id.clone(),
-                                data,
-                            },
-                        );
+                        // UTF-8 incremental decoder: prepend pending bytes
+                        let data_bytes = if pending.is_empty() {
+                            buf[..n].to_vec()
+                        } else {
+                            let mut combined = std::mem::take(&mut pending);
+                            combined.extend_from_slice(&buf[..n]);
+                            combined
+                        };
+
+                        // Find the last valid UTF-8 boundary
+                        let valid_len = find_utf8_boundary(&data_bytes);
+                        if valid_len < data_bytes.len() {
+                            pending = data_bytes[valid_len..].to_vec();
+                        }
+
+                        if valid_len > 0 {
+                            let data = String::from_utf8_lossy(&data_bytes[..valid_len]).to_string();
+                            let _ = app_handle.emit(
+                                "terminal:output",
+                                TerminalOutputEvent {
+                                    id: id.clone(),
+                                    data,
+                                },
+                            );
+                        }
                     }
                     Err(e) => {
                         tracing::error!("Terminal {} read error: {}", id, e);
@@ -406,6 +443,44 @@ fn spawn_reader(
             }
         })
         .expect("Failed to spawn terminal reader thread")
+}
+
+// ─── UTF-8 boundary helper ──────────────────────────────────────────────────
+
+/// Find the last valid UTF-8 boundary in a byte slice.
+/// Returns the length of the valid prefix. Incomplete multi-byte sequences
+/// at the end are excluded so they can be prepended to the next read.
+fn find_utf8_boundary(bytes: &[u8]) -> usize {
+    if std::str::from_utf8(bytes).is_ok() {
+        return bytes.len();
+    }
+    let len = bytes.len();
+    // Walk backwards up to 4 bytes to find incomplete sequence
+    for i in 1..=4.min(len) {
+        let pos = len - i;
+        let b = bytes[pos];
+        if b < 0x80 {
+            // ASCII byte — the error is elsewhere, return full length
+            return len;
+        }
+        // Check if this is a leading byte of a multi-byte sequence
+        let expected_len = if b >= 0xF0 {
+            4
+        } else if b >= 0xE0 {
+            3
+        } else if b >= 0xC0 {
+            2
+        } else {
+            continue; // continuation byte, keep looking
+        };
+        // If the sequence is incomplete, split here
+        if pos + expected_len > len {
+            return pos;
+        }
+        // Sequence has enough bytes but is invalid — no incomplete char
+        return len;
+    }
+    len
 }
 
 // ─── Tauri commands ──────────────────────────────────────────────────────────

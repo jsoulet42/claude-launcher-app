@@ -49,14 +49,31 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const ipcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCountRef = useRef(0);
   const lastColsRef = useRef(0);
   const lastRowsRef = useRef(0);
+  const MAX_FIT_RETRIES = 10;
 
   // Fit xterm immediately, debounce only the IPC resize call
   const doFit = useCallback(() => {
     if (!fitAddonRef.current || !termRef.current) return;
     const container = containerRef.current;
-    if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) return;
+    if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
+      // Container not sized yet — retry with limit
+      if (retryCountRef.current >= MAX_FIT_RETRIES) return;
+      retryCountRef.current++;
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(() => doFit(), 100);
+      return;
+    }
+
+    // Reset retry counter on success
+    retryCountRef.current = 0;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
 
     fitAddonRef.current.fit();
     const cols = termRef.current.cols;
@@ -87,11 +104,26 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
 
-    // WebGL addon with fallback
+    // WebGL addon with context loss recovery
     try {
-      term.loadAddon(new WebglAddon());
+      const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        console.warn('WebGL context lost, attempting recovery...');
+        webglAddon.dispose();
+        try {
+          const newWebgl = new WebglAddon();
+          newWebgl.onContextLoss(() => {
+            console.warn('WebGL context lost again, falling back to canvas permanently');
+            newWebgl.dispose();
+          });
+          term.loadAddon(newWebgl);
+        } catch {
+          console.warn('WebGL reload failed, using canvas renderer');
+        }
+      });
+      term.loadAddon(webglAddon);
     } catch {
-      // Canvas fallback — silent
+      console.warn('WebGL not available, using canvas renderer');
     }
 
     // Web links: Ctrl+Click to open URLs
@@ -101,16 +133,21 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
-    // Initial fit
-    fitAddon.fit();
-    const cols = term.cols;
-    const rows = term.rows;
-    lastColsRef.current = cols;
-    lastRowsRef.current = rows;
-    invoke('resize_terminal', {
-      params: { id: terminalId, cols, rows },
-    }).catch(() => {});
-    onResize?.(cols, rows);
+    // Initial fit — delay 300ms to avoid ConPTY race condition where
+    // ResizePseudoConsole is ignored if called too soon after CreateProcess
+    // (microsoft/terminal#10400)
+    setTimeout(() => {
+      if (!fitAddonRef.current || !termRef.current) return;
+      fitAddonRef.current.fit();
+      const cols = termRef.current.cols;
+      const rows = termRef.current.rows;
+      lastColsRef.current = cols;
+      lastRowsRef.current = rows;
+      invoke('resize_terminal', {
+        params: { id: terminalId, cols, rows },
+      }).catch(() => {});
+      onResize?.(cols, rows);
+    }, 300);
 
     // Input: user keystrokes → ConPTY
     const dataDisposable = term.onData((data) => {
@@ -136,8 +173,10 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       if (e.ctrlKey && e.key === 'v') {
         navigator.clipboard.readText().then((text) => {
           if (text) {
+            // Bracketed paste: shell receives text as a block, not line by line
+            const bracketedText = '\x1b[200~' + text + '\x1b[201~';
             invoke('write_terminal', {
-              params: { id: terminalId, data: text },
+              params: { id: terminalId, data: bracketedText },
             }).catch(() => {});
           }
         });
@@ -160,6 +199,7 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     return () => {
       observer.disconnect();
       if (ipcTimerRef.current) clearTimeout(ipcTimerRef.current);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
       dataDisposable.dispose();
       term.dispose();
       termRef.current = null;
@@ -205,19 +245,41 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
   useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
 
   // Re-fit when the element becomes visible (tab switch)
+  // Always force a resize IPC on visibility change to send SIGWINCH,
+  // even if dimensions haven't changed — this forces CLI apps (like claude)
+  // to re-render their layout.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
     const observer = new IntersectionObserver((entries) => {
       if (entries[0]?.isIntersecting) {
-        doFit();
+        // Delay slightly to let the browser finish layout after display change
+        requestAnimationFrame(() => {
+          if (fitAddonRef.current && termRef.current) {
+            const container = containerRef.current;
+            if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
+              fitAddonRef.current.fit();
+              const cols = termRef.current.cols;
+              const rows = termRef.current.rows;
+              lastColsRef.current = cols;
+              lastRowsRef.current = rows;
+              // Always send resize IPC on visibility — forces SIGWINCH
+              invoke('resize_terminal', {
+                params: { id: terminalId, cols, rows },
+              }).catch(() => {});
+              onResize?.(cols, rows);
+              // Force full re-render after visibility change
+              termRef.current.refresh(0, termRef.current.rows - 1);
+            }
+          }
+        });
       }
     });
     observer.observe(el);
 
     return () => observer.disconnect();
-  }, [terminalId, doFit]);
+  }, [terminalId, doFit, onResize]);
 
   return <div ref={containerRef} className="terminal-container" />;
 }

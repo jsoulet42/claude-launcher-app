@@ -1,3 +1,4 @@
+mod commands;
 mod config;
 mod conpty;
 mod error;
@@ -57,7 +58,7 @@ pub fn run() {
 
     info!("Claude Launcher v{} starting", env!("CARGO_PKG_VERSION"));
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -81,7 +82,17 @@ pub fn run() {
             git::format_title,
             scanner::scan_projects,
             scanner::detect_project_stack,
+            commands::resolve_initial_commands,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| {
+        if let tauri::RunEvent::ExitRequested { .. } = &event {
+            info!("Application exit requested — closing all terminals");
+            if let Some(manager) = app_handle.try_state::<TerminalManager>() {
+                manager.close_all();
+            }
+        }
+    });
 }
