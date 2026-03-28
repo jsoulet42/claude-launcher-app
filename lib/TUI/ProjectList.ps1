@@ -7,53 +7,7 @@
     Permet la navigation et la selection pour afficher les details dans le body.
 #>
 
-function Get-ProjectGitInfo {
-    [CmdletBinding()]
-    [OutputType([hashtable])]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Path
-    )
-
-    if (-not (Test-Path $Path)) {
-        return @{ Exists = $false; IsGit = $false; Branch = ''; DirtyCount = 0; IsDirty = $false }
-    }
-
-    try {
-        $isGitResult = git -C $Path rev-parse --is-inside-work-tree 2>&1
-        if ($isGitResult -is [System.Management.Automation.ErrorRecord]) {
-            Write-Log -Level 'WARN' -Source 'ProjectList' -Message "Git check failed for $Path`: $($isGitResult.Exception.Message)"
-            return @{ Exists = $true; IsGit = $false; Branch = ''; DirtyCount = 0; IsDirty = $false }
-        }
-        if ($isGitResult -ne 'true') {
-            return @{ Exists = $true; IsGit = $false; Branch = ''; DirtyCount = 0; IsDirty = $false }
-        }
-
-        $branch = git -C $Path rev-parse --abbrev-ref HEAD 2>&1
-        if ($branch -is [System.Management.Automation.ErrorRecord]) {
-            Write-Log -Level 'WARN' -Source 'ProjectList' -Message "Git branch failed for $Path"
-            $branch = '(unknown)'
-        }
-        if (-not $branch) { $branch = '(detached)' }
-
-        $porcelain = git -C $Path status --porcelain 2>&1
-        $dirtyCount = 0
-        if ($porcelain -and $porcelain -isnot [System.Management.Automation.ErrorRecord]) {
-            $dirtyCount = ($porcelain -split "`n" | Where-Object { $_.Trim() -ne '' }).Count
-        }
-
-        return @{
-            Exists     = $true
-            IsGit      = $true
-            Branch     = $branch
-            DirtyCount = $dirtyCount
-            IsDirty    = ($dirtyCount -gt 0)
-        }
-    } catch {
-        Write-Log -Level 'WARN' -Source 'ProjectList' -Message "Git failed for $Path" -ErrorRecord $_
-        return @{ Exists = $true; IsGit = $false; Branch = ''; DirtyCount = 0; IsDirty = $false }
-    }
-}
+# Get-ProjectGitInfo est fourni par lib/Git/GitInfo.ps1 (charge par launcher.ps1)
 
 function New-ProjectListView {
     [CmdletBinding()]
@@ -79,7 +33,7 @@ function New-ProjectListView {
 
     foreach ($slug in $Config.projects.Keys | Sort-Object) {
         $project = $Config.projects[$slug]
-        $gitInfo = Get-ProjectGitInfo -Path $project.path
+        $gitInfo = Get-ProjectGitInfo -Path $project.path -IncludeCommits
 
         $projectsArray.Add(@{
             Slug    = $slug
@@ -152,6 +106,19 @@ function New-ProjectListView {
                 $lines.Add("  Status   : $($gi.DirtyCount) fichier(s) modifie(s)")
             } else {
                 $lines.Add("  Status   : Propre")
+            }
+            if ($gi.IsMonoRepo) {
+                $lines.Add("  Mono-repo: $($gi.RepoRoot)")
+            }
+            # Derniers commits
+            if ($gi.RecentCommits -and $gi.RecentCommits.Count -gt 0) {
+                $lines.Add("")
+                $lines.Add("  Derniers commits :")
+                foreach ($c in $gi.RecentCommits) {
+                    $msg = $c.Message
+                    if ($msg.Length -gt 50) { $msg = $msg.Substring(0, 47) + '...' }
+                    $lines.Add("    $($c.Hash) $msg ($($c.TimeAgo))")
+                }
             }
         }
 

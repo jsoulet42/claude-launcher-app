@@ -35,42 +35,7 @@ function ConvertTo-ProjectSlug {
     return $slug
 }
 
-function Get-GitBranchName {
-    [CmdletBinding()]
-    [OutputType([string])]
-    param(
-        [Parameter(Mandatory)]
-        [string]$Path
-    )
-
-    $headPath = Join-Path $Path '.git' 'HEAD'
-
-    if (-not (Test-Path $headPath)) {
-        return 'unknown'
-    }
-
-    try {
-        $content = Get-Content -Path $headPath -Raw -Encoding UTF8
-        if ([string]::IsNullOrWhiteSpace($content)) {
-            return 'unknown'
-        }
-
-        # Format attendu : "ref: refs/heads/branch-name"
-        if ($content -match '^ref:\s+refs/heads/(.+)$') {
-            return $Matches[1].Trim()
-        }
-
-        # Detached HEAD (hash direct) — retourner les 8 premiers caracteres
-        $hash = $content.Trim()
-        if ($hash -match '^[0-9a-f]{40}$') {
-            return $hash.Substring(0, 8)
-        }
-
-        return 'unknown'
-    } catch {
-        return 'unknown'
-    }
-}
+# Get-GitBranchName est fourni par lib/Git/GitInfo.ps1 (charge par launcher.ps1)
 
 function Get-ProjectStackType {
     [CmdletBinding()]
