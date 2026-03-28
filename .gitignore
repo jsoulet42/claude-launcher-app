@@ -12,3 +12,10 @@ logs/
 
 # Config utilisateur (contient des chemins locaux)
 config.json
+
+# Tauri / Rust
+target/
+dist/
+
+# Node.js
+node_modules/
