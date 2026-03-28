@@ -300,10 +300,24 @@ impl TerminalManager {
 
 /// Resolve the shell to use: explicit param > COMSPEC env var > pwsh.exe fallback.
 fn resolve_shell(shell: Option<String>) -> String {
-    if let Some(s) = shell {
-        return s;
+    let raw = match shell {
+        Some(s) if !s.is_empty() => s,
+        _ => std::env::var("COMSPEC").unwrap_or_else(|_| "pwsh.exe".to_string()),
+    };
+
+    // Shells need specific flags to stay interactive in a ConPTY.
+    // Without -NoExit, pwsh opens, runs the profile, and immediately exits.
+    let base = raw.trim().to_lowercase();
+    if base == "pwsh" || base == "pwsh.exe" || base == "powershell" || base == "powershell.exe" {
+        format!("{} -NoExit", raw.trim())
+    } else if base == "cmd" || base == "cmd.exe" {
+        raw
+    } else {
+        // For interactive commands (claude, etc.), launch inside pwsh -NoExit
+        // so the terminal stays alive and provides a proper interactive session.
+        // The command runs first, then pwsh stays open for further interaction.
+        format!("pwsh.exe -NoExit -Command {}", raw.trim())
     }
-    std::env::var("COMSPEC").unwrap_or_else(|_| "pwsh.exe".to_string())
 }
 
 // ─── Output reader + process watcher threads ───────────────────────────────
