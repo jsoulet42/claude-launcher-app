@@ -1,10 +1,13 @@
 import { useEffect, useCallback } from 'react';
 import { useConfigStore } from './stores/config';
 import { useTerminalsStore } from './stores/terminals';
+import { useProjectsStore } from './stores/projects';
+import { useUiStore } from './stores/ui';
 import { useTauriEvent } from './hooks/useTauriEvent';
 import { AppLayout } from './components/AppLayout';
 import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
+import { ProjectDetail } from './components/ProjectDetail';
 import type { TerminalExitEvent, TerminalErrorEvent } from './types/ipc';
 import './App.css';
 
@@ -16,7 +19,7 @@ function WelcomeScreen() {
       <div className="welcome-content">
         <p className="welcome-message">Aucun terminal ouvert</p>
         <p className="welcome-hint">
-          Cliquez sur [+] ou le bouton ci-dessous pour lancer un terminal
+          Sélectionnez un projet dans la sidebar ou lancez un terminal directement
         </p>
         <button
           className="welcome-action"
@@ -62,6 +65,8 @@ function TerminalArea() {
   const updateTerminalStatus = useTerminalsStore(
     (s) => s.updateTerminalStatus
   );
+  const selectedProject = useProjectsStore((s) => s.selectedProject);
+  const showProjectDetail = useUiStore((s) => s.showProjectDetail);
 
   // Global listener: update terminal status on exit
   const handleExit = useCallback(
@@ -81,8 +86,23 @@ function TerminalArea() {
   );
   useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
 
+  // Show project detail when no workspaces and a project is selected
+  if (workspaces.length === 0 && selectedProject) {
+    return <ProjectDetail key={selectedProject} projectSlug={selectedProject} />;
+  }
+
   if (workspaces.length === 0) {
     return <WelcomeScreen />;
+  }
+
+  // Show project detail overlay when user clicks a project while workspaces exist
+  if (showProjectDetail && selectedProject) {
+    return (
+      <>
+        <TabBar />
+        <ProjectDetail key={selectedProject} projectSlug={selectedProject} />
+      </>
+    );
   }
 
   return (
@@ -106,11 +126,21 @@ function TerminalArea() {
 }
 
 function App() {
-  const { loading, error, loadConfig } = useConfigStore();
+  const { loading, error, config, loadConfig } = useConfigStore();
+  const startPolling = useProjectsStore((s) => s.startPolling);
+  const stopPolling = useProjectsStore((s) => s.stopPolling);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // Start git polling once config is loaded
+  useEffect(() => {
+    if (config && Object.keys(config.projects).length > 0) {
+      startPolling(config.projects);
+      return () => stopPolling();
+    }
+  }, [config, startPolling, stopPolling]);
 
   if (loading) {
     return (

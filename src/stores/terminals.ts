@@ -120,14 +120,14 @@ interface TerminalsState {
   activeWorkspaceId: string | null;
   terminals: Record<string, TerminalInfo>;
 
-  createWorkspace: (name?: string, color?: string) => Promise<string>;
+  createWorkspace: (name?: string, color?: string, opts?: { shell?: string; cwd?: string }) => Promise<string>;
   closeWorkspace: (workspaceId: string) => Promise<void>;
   setActiveWorkspace: (workspaceId: string) => void;
   renameWorkspace: (workspaceId: string, name: string) => void;
 
   createTerminalInWorkspace: (
     workspaceId: string,
-    opts?: { shell?: string; cwd?: string }
+    opts?: { shell?: string; cwd?: string; direction?: 'horizontal' | 'vertical' }
   ) => Promise<string>;
   splitPane: (
     workspaceId: string,
@@ -156,13 +156,13 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   activeWorkspaceId: null,
   terminals: {},
 
-  createWorkspace: async (name?: string, color?: string) => {
+  createWorkspace: async (name?: string, color?: string, opts?: { shell?: string; cwd?: string }) => {
     const wsId = uuid();
     workspaceCounter++;
     const wsName = name || `Terminal ${workspaceCounter}`;
 
     const result = await invoke<CreateTerminalResult>('create_terminal', {
-      params: { cols: 80, rows: 24 },
+      params: { shell: opts?.shell, cwd: opts?.cwd, cols: 80, rows: 24 },
     });
 
     const pane: PaneNode = {
@@ -173,8 +173,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
 
     const info: TerminalInfo = {
       id: result.id,
-      shell: 'pwsh.exe',
-      cwd: null,
+      shell: opts?.shell || 'pwsh.exe',
+      cwd: opts?.cwd || null,
       cols: 80,
       rows: 24,
       status: 'running',
@@ -239,9 +239,13 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   },
 
   createTerminalInWorkspace: async (
-    _workspaceId: string,
-    opts?: { shell?: string; cwd?: string }
+    workspaceId: string,
+    opts?: { shell?: string; cwd?: string; direction?: 'horizontal' | 'vertical' }
   ) => {
+    const state = get();
+    const ws = state.workspaces.find((w) => w.id === workspaceId);
+    if (!ws) return '';
+
     const result = await invoke<CreateTerminalResult>('create_terminal', {
       params: {
         shell: opts?.shell,
@@ -260,7 +264,48 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       status: 'running',
     };
 
+    const newPane: PaneNode = {
+      id: uuid(),
+      type: 'terminal',
+      terminalId: result.id,
+    };
+
+    // Find the rightmost/bottom pane to split
+    const findLastPane = (node: LayoutNode): string => {
+      if (node.type === 'terminal') return node.id;
+      return findLastPane(node.children[1]);
+    };
+    const lastPaneId = findLastPane(ws.layout);
+    const direction = opts?.direction || 'horizontal';
+
+    const existingTerminalId = findPaneTerminalId(ws.layout, lastPaneId);
+    if (existingTerminalId === null) {
+      set((s) => ({
+        terminals: { ...s.terminals, [result.id]: info },
+      }));
+      return result.id;
+    }
+
+    const oldPaneNode: PaneNode = {
+      id: lastPaneId,
+      type: 'terminal',
+      terminalId: existingTerminalId,
+    };
+
+    const splitNode: SplitNode = {
+      id: uuid(),
+      type: 'split',
+      direction,
+      children: [oldPaneNode, newPane],
+      ratio: 0.5,
+    };
+
+    const newLayout = replacePaneInTree(ws.layout, lastPaneId, splitNode);
+
     set((s) => ({
+      workspaces: s.workspaces.map((w) =>
+        w.id === workspaceId ? { ...w, layout: newLayout } : w
+      ),
       terminals: { ...s.terminals, [result.id]: info },
     }));
 
