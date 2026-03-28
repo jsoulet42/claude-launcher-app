@@ -266,6 +266,7 @@ impl ConPty {
     }
 
     /// Check if the child process is still alive.
+    #[allow(dead_code)] // Will be used by dashboard-view (P24)
     pub fn is_alive(&self) -> bool {
         let handle = HANDLE(self.process.as_raw_handle());
         unsafe {
