@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useTerminalsStore } from '../stores/terminals';
+import { useUiStore } from '../stores/ui';
 import './TabBar.css';
 
 export function TabBar() {
@@ -9,6 +10,7 @@ export function TabBar() {
   const closeWorkspace = useTerminalsStore((s) => s.closeWorkspace);
   const createWorkspace = useTerminalsStore((s) => s.createWorkspace);
   const renameWorkspace = useTerminalsStore((s) => s.renameWorkspace);
+  const hideDetail = useUiStore((s) => s.hideDetail);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -48,7 +50,7 @@ export function TabBar() {
           <button
             key={ws.id}
             className={`tabbar-tab${ws.id === activeWorkspaceId ? ' tabbar-tab--active' : ''}`}
-            onClick={() => setActiveWorkspace(ws.id)}
+            onClick={() => { setActiveWorkspace(ws.id); hideDetail(); }}
             onDoubleClick={() => startRename(ws.id, ws.name)}
           >
             <span

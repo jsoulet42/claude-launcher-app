@@ -1,13 +1,13 @@
 import { useUiStore } from '../stores/ui';
 import { useConfigStore } from '../stores/config';
 import { SidebarSection } from './SidebarSection';
+import { ProjectList } from './ProjectList';
 import './Sidebar.css';
 
 export function Sidebar() {
   const { sidebarExpanded, activeSidebarSection, toggleSidebar, setActiveSection } = useUiStore();
   const config = useConfigStore((s) => s.config);
 
-  const projects = config ? Object.entries(config.projects) : [];
   const presets = config ? Object.entries(config.presets) : [];
 
   return (
@@ -28,17 +28,7 @@ export function Sidebar() {
           active={activeSidebarSection === 'projects'}
           onActivate={() => setActiveSection('projects')}
         >
-          <ul className="sidebar-list">
-            {projects.map(([slug, project]) => (
-              <li key={slug} className="sidebar-item">
-                <span
-                  className="sidebar-item-color"
-                  style={{ backgroundColor: project.color || '#6c7086' }}
-                />
-                <span className="sidebar-item-label">{project.name}</span>
-              </li>
-            ))}
-          </ul>
+          <ProjectList expanded={sidebarExpanded} />
         </SidebarSection>
 
         <SidebarSection

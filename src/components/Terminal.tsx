@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
+import { WebLinksAddon } from '@xterm/addon-web-links';
 import { useTauriEvent } from '../hooks/useTauriEvent';
 import type { TerminalOutputEvent, TerminalExitEvent, TerminalErrorEvent } from '../types/ipc';
 import './Terminal.css';
@@ -92,6 +93,9 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     } catch {
       // Canvas fallback — silent
     }
+
+    // Web links: Ctrl+Click to open URLs
+    term.loadAddon(new WebLinksAddon());
 
     term.open(el);
     termRef.current = term;

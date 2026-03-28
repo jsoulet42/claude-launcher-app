@@ -6,6 +6,7 @@ export interface ConfigData {
   projects: Record<string, Project>;
   presets: Record<string, Preset>;
   layouts: Record<string, Layout>;
+  preferences?: Preferences;
 }
 
 export interface Project {
@@ -87,4 +88,64 @@ export interface TerminalExitEvent {
 export interface TerminalErrorEvent {
   id: string;
   error: string;
+}
+
+// === Git IPC types (P19 — git-rust) ===
+// Miroir exact des structs Rust dans src-tauri/src/git.rs
+
+export interface GitInfo {
+  exists: boolean;
+  is_git: boolean;
+  branch: string;
+  dirty_count: number;
+  is_dirty: boolean;
+  is_mono_repo: boolean;
+  repo_root: string;
+  recent_commits: CommitInfo[];
+}
+
+export interface CommitInfo {
+  hash: string;
+  message: string;
+  time_ago: string;
+}
+
+// === Config preferences ===
+
+export interface Preferences {
+  theme?: string;
+  default_preset?: string;
+  scan_directories?: string[];
+  auto_discover_projects?: boolean;
+  daemon?: DaemonPrefs;
+}
+
+export interface DaemonPrefs {
+  enabled?: boolean;
+  watch_interval_ms?: number;
+}
+
+// === Scanner IPC types (P20 — scanner-rust) ===
+// Miroir exact des structs Rust dans src-tauri/src/scanner.rs
+
+export type StackType =
+  | 'dolibarr-module' | 'php' | 'node' | 'go'
+  | 'rust' | 'dotnet' | 'python' | 'powershell' | 'unknown';
+
+export interface ScanOptions {
+  directories: string[];
+  max_depth?: number;
+  existing_paths: string[];
+}
+
+export interface ScannedProject {
+  slug: string;
+  name: string;
+  path: string;
+  color: string;
+  default_command: string;
+  source: string;
+  stack_type: StackType;
+  git_branch: string;
+  icon: string;
 }
