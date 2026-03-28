@@ -1,4 +1,5 @@
 mod config;
+mod error;
 
 use config::ConfigData;
 use tracing::info;

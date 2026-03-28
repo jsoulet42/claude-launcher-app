@@ -1,16 +1,78 @@
 :root {
+  /* === Couleurs de base (Catppuccin Mocha) === */
   --bg-primary: #1e1e2e;
   --bg-secondary: #181825;
   --bg-surface: #313244;
   --text-primary: #cdd6f4;
-  --text-secondary: #a6adc8;
+  --text-secondary: #bac2de;
   --text-muted: #6c7086;
   --accent: #89b4fa;
   --accent-green: #a6e3a1;
   --accent-red: #f38ba8;
   --accent-yellow: #f9e2af;
-  --border: #45475a;
-  --font-mono: "Cascadia Code", "JetBrains Mono", "Fira Code", monospace;
+
+  /* === Surfaces === */
+  --bg-titlebar: #11111b;
+  --bg-sidebar: #181825;
+  --bg-statusbar: #181825;
+  --bg-terminal: #1e1e2e;
+  --bg-tab-active: #313244;
+  --bg-tab-inactive: #1e1e2e;
+  --bg-hover: #45475a;
+  --bg-selected: #585b70;
+
+  /* === Bordures === */
+  --border-primary: #313244;
+  --border-subtle: #45475a;
+  --border-accent: #89b4fa;
+
+  /* === Spacing (base 4px) === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* === Dimensions fixes === */
+  --titlebar-height: 32px;
+  --statusbar-height: 28px;
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 48px;
+  --tab-height: 36px;
+
+  /* === Radius === */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* === Transitions === */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+
+  /* === Shadows === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+
+  /* === Opacity === */
+  --opacity-disabled: 0.5;
+  --opacity-hover: 0.8;
+
+  /* === Font === */
+  --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+
+  /* === Z-index === */
+  --z-sidebar: 10;
+  --z-titlebar: 20;
+  --z-modal: 30;
+  --z-toast: 40;
 }
 
 * {
@@ -23,7 +85,7 @@ body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1.6;
   overflow: hidden;
   height: 100vh;
@@ -33,4 +95,22 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-selected);
 }
