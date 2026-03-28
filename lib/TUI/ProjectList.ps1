@@ -33,7 +33,7 @@ function New-ProjectListView {
 
     foreach ($slug in $Config.projects.Keys | Sort-Object) {
         $project = $Config.projects[$slug]
-        $gitInfo = Get-ProjectGitInfo -Path $project.path
+        $gitInfo = Get-ProjectGitInfo -Path $project.path -IncludeCommits
 
         $projectsArray.Add(@{
             Slug    = $slug
@@ -106,6 +106,19 @@ function New-ProjectListView {
                 $lines.Add("  Status   : $($gi.DirtyCount) fichier(s) modifie(s)")
             } else {
                 $lines.Add("  Status   : Propre")
+            }
+            if ($gi.IsMonoRepo) {
+                $lines.Add("  Mono-repo: $($gi.RepoRoot)")
+            }
+            # Derniers commits
+            if ($gi.RecentCommits -and $gi.RecentCommits.Count -gt 0) {
+                $lines.Add("")
+                $lines.Add("  Derniers commits :")
+                foreach ($c in $gi.RecentCommits) {
+                    $msg = $c.Message
+                    if ($msg.Length -gt 50) { $msg = $msg.Substring(0, 47) + '...' }
+                    $lines.Add("    $($c.Hash) $msg ($($c.TimeAgo))")
+                }
             }
         }
 
