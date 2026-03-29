@@ -58,8 +58,8 @@
 }
 
 .settings-panel-tab--active {
-  background: var(--bg-active, #45475a);
-  color: var(--text-primary, #cdd6f4);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   font-weight: 600;
 }
 

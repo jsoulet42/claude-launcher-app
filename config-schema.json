@@ -79,6 +79,41 @@
         },
         "daemon": {
           "$ref": "#/$defs/DaemonConfig"
+        },
+        "custom_theme": {
+          "$ref": "#/$defs/CustomThemeColors"
+        }
+      }
+    },
+    "CustomThemeColors": {
+      "type": "object",
+      "required": ["bg_primary", "bg_secondary", "bg_surface", "text_primary", "accent"],
+      "additionalProperties": false,
+      "properties": {
+        "bg_primary": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Couleur de fond principale"
+        },
+        "bg_secondary": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Couleur de fond secondaire"
+        },
+        "bg_surface": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Couleur des surfaces (cards, headers)"
+        },
+        "text_primary": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Couleur du texte principal"
+        },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$",
+          "description": "Couleur d'accent principale"
         }
       }
     },

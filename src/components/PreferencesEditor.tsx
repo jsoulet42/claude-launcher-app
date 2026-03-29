@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useConfigStore } from '../stores/config';
 import { useProjectsStore } from '../stores/projects';
+import { useThemeStore } from '../stores/theme';
+import type { ThemeName, CustomThemeColors } from '../stores/theme';
 import type { ConfigData, Preferences } from '../types/ipc';
 import './PreferencesEditor.css';
 
@@ -10,7 +12,17 @@ export function PreferencesEditor() {
   const saveConfig = useConfigStore((s) => s.saveConfig);
   const fetchAllGitInfo = useProjectsStore((s) => s.fetchAllGitInfo);
 
-  const [theme, setTheme] = useState('dark');
+  const applyTheme = useThemeStore((s) => s.applyTheme);
+  const commitTheme = useThemeStore((s) => s.commitTheme);
+
+  const [theme, setTheme] = useState<ThemeName>('dark');
+  const [customColors, setCustomColors] = useState<CustomThemeColors>({
+    bg_primary: '#1e1e2e',
+    bg_secondary: '#181825',
+    bg_surface: '#313244',
+    text_primary: '#cdd6f4',
+    accent: '#89b4fa',
+  });
   const [defaultPreset, setDefaultPreset] = useState('');
   const [scanDirs, setScanDirs] = useState<string[]>([]);
   const [notifyOnWait, setNotifyOnWait] = useState(true);
@@ -22,7 +34,11 @@ export function PreferencesEditor() {
   useEffect(() => {
     if (!config) return;
     const prefs = config.preferences;
-    setTheme(prefs?.theme || 'dark');
+    const t = (prefs?.theme || 'dark') as ThemeName;
+    setTheme(t);
+    if (prefs?.custom_theme) {
+      setCustomColors(prefs.custom_theme);
+    }
     setDefaultPreset(prefs?.default_preset || '');
     setScanDirs(prefs?.scan_directories || []);
     setNotifyOnWait(prefs?.daemon?.notify_on_wait ?? true);
@@ -51,6 +67,7 @@ export function PreferencesEditor() {
     const newPreferences: Preferences = {
       ...config.preferences,
       theme,
+      custom_theme: theme === 'custom' ? customColors : config.preferences?.custom_theme,
       default_preset: defaultPreset || undefined,
       scan_directories: scanDirs,
       daemon: {
@@ -62,6 +79,7 @@ export function PreferencesEditor() {
     const newConfig: ConfigData = { ...config, preferences: newPreferences };
     const result = await saveConfig(newConfig);
     if (result.ok) {
+      commitTheme();
       setSaveSuccess(true);
       fetchAllGitInfo(newConfig.projects);
       setTimeout(() => setSaveSuccess(false), 2000);
@@ -80,13 +98,64 @@ export function PreferencesEditor() {
           <label>Theme</label>
           <select
             value={theme}
-            onChange={(e) => setTheme(e.target.value)}
+            onChange={(e) => {
+              const t = e.target.value as ThemeName;
+              setTheme(t);
+              applyTheme(t, t === 'custom' ? customColors : undefined);
+            }}
             className="preferences-editor-select"
           >
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
+            <option value="dark">Dark (Catppuccin Mocha)</option>
+            <option value="light">Light (Warm Latte)</option>
+            <option value="custom">Custom</option>
           </select>
         </div>
+
+        {theme === 'custom' && (
+          <div className="preferences-editor-field">
+            <label>Couleurs personnalisees</label>
+            <div className="preferences-editor-colors">
+              {([
+                ['bg_primary', 'Fond principal'],
+                ['bg_secondary', 'Fond secondaire'],
+                ['bg_surface', 'Surface'],
+                ['text_primary', 'Texte'],
+                ['accent', 'Accent'],
+              ] as [keyof CustomThemeColors, string][]).map(([key, label]) => (
+                <div key={key} className="preferences-editor-color-row">
+                  <input
+                    type="color"
+                    value={customColors[key]}
+                    onChange={(e) => {
+                      const updated = { ...customColors, [key]: e.target.value };
+                      setCustomColors(updated);
+                      applyTheme('custom', updated);
+                    }}
+                    className="preferences-editor-color-input"
+                  />
+                  <span className="preferences-editor-color-label">{label}</span>
+                  <code className="preferences-editor-color-hex">{customColors[key]}</code>
+                </div>
+              ))}
+              <button
+                className="preferences-editor-btn preferences-editor-btn--reset"
+                onClick={() => {
+                  const defaults: CustomThemeColors = {
+                    bg_primary: '#1e1e2e',
+                    bg_secondary: '#181825',
+                    bg_surface: '#313244',
+                    text_primary: '#cdd6f4',
+                    accent: '#89b4fa',
+                  };
+                  setCustomColors(defaults);
+                  applyTheme('custom', defaults);
+                }}
+              >
+                Reinitialiser (Dark)
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="preferences-editor-field">
           <label>Preset par defaut</label>

@@ -6,6 +6,12 @@
   min-height: 0;
 }
 
+.terminal-pane-color-bar {
+  height: 3px;
+  width: 100%;
+  flex-shrink: 0;
+}
+
 .terminal-pane-header {
   display: flex;
   align-items: center;

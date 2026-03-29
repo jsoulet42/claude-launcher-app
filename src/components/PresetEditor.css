@@ -42,7 +42,7 @@
   font-size: 12px;
   padding: 1px 6px;
   border-radius: 3px;
-  background: var(--bg-active, #45475a);
+  background: var(--bg-surface);
   color: var(--text-secondary, #a6adc8);
 }
 
@@ -73,7 +73,7 @@
 
 .preset-editor-item-btn--danger:hover {
   background: #f38ba8;
-  color: #1e1e2e;
+  color: #ffffff;
   border-color: #f38ba8;
 }
 
@@ -243,7 +243,7 @@
 
 .preset-editor-btn--primary {
   background: var(--accent, #89b4fa);
-  color: #1e1e2e;
+  color: #ffffff;
   border-color: var(--accent, #89b4fa);
   font-weight: 500;
 }
@@ -254,7 +254,7 @@
 
 .preset-editor-btn--danger {
   background: #f38ba8;
-  color: #1e1e2e;
+  color: #ffffff;
   border-color: #f38ba8;
 }
 

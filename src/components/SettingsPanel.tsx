@@ -1,5 +1,6 @@
 import { useUiStore } from '../stores/ui';
 import { useProjectsStore } from '../stores/projects';
+import { useThemeStore } from '../stores/theme';
 import type { SettingsTab } from '../stores/ui';
 import { ProjectEditor } from './ProjectEditor';
 import { PresetEditor } from './PresetEditor';
@@ -15,9 +16,11 @@ const TABS: { key: SettingsTab; label: string }[] = [
 export function SettingsPanel() {
   const { settingsTab, setSettingsTab, hideSettings } = useUiStore();
   const clearScannedProjects = useProjectsStore((s) => s.clearScannedProjects);
+  const revertTheme = useThemeStore((s) => s.revertTheme);
 
   const handleBack = () => {
     clearScannedProjects();
+    revertTheme();
     hideSettings();
   };
 

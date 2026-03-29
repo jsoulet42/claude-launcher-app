@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Terminal as XTerm } from '@xterm/xterm';
+import type { ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -13,14 +14,10 @@ interface TerminalProps {
   onResize?: (cols: number, rows: number) => void;
 }
 
-const TERMINAL_OPTIONS = {
-  fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
-  fontSize: 14,
-  lineHeight: 1.2,
-  cursorBlink: true,
-  cursorStyle: 'bar' as const,
-  scrollback: 5000,
-  theme: {
+// --- xterm.js theme palettes (Catppuccin) ---
+
+const XTERM_THEMES: Record<'dark' | 'light', ITheme> = {
+  dark: {
     background: '#1e1e2e',
     foreground: '#cdd6f4',
     cursor: '#f5e0dc',
@@ -42,6 +39,55 @@ const TERMINAL_OPTIONS = {
     brightCyan: '#94e2d5',
     brightWhite: '#a6adc8',
   },
+  light: {
+    background: '#faf4ed',
+    foreground: '#575279',
+    cursor: '#9893a5',
+    selectionBackground: '#dfdad4',
+    black: '#6e6a86',
+    red: '#b4637a',
+    green: '#56949f',
+    yellow: '#ea9d34',
+    blue: '#286983',
+    magenta: '#907aa9',
+    cyan: '#56949f',
+    white: '#d4cec6',
+    brightBlack: '#9893a5',
+    brightRed: '#b4637a',
+    brightGreen: '#56949f',
+    brightYellow: '#ea9d34',
+    brightBlue: '#286983',
+    brightMagenta: '#907aa9',
+    brightCyan: '#56949f',
+    brightWhite: '#e8e0d8',
+  },
+};
+
+function getXtermTheme(): ITheme {
+  const dataTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+
+  if (dataTheme === 'light') return XTERM_THEMES.light;
+  if (dataTheme === 'custom') {
+    const style = getComputedStyle(document.documentElement);
+    return {
+      ...XTERM_THEMES.dark,
+      background: style.getPropertyValue('--bg-terminal').trim() || XTERM_THEMES.dark.background,
+      foreground: style.getPropertyValue('--text-primary').trim() || XTERM_THEMES.dark.foreground,
+      cursor: style.getPropertyValue('--accent').trim() || XTERM_THEMES.dark.cursor,
+      selectionBackground: (style.getPropertyValue('--bg-selected').trim() || '#585b70') + '80',
+    };
+  }
+  return XTERM_THEMES.dark;
+}
+
+const TERMINAL_OPTIONS = {
+  fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+  fontSize: 14,
+  lineHeight: 1.2,
+  cursorBlink: true,
+  cursorStyle: 'bar' as const,
+  scrollback: 5000,
+  theme: XTERM_THEMES.dark,
 };
 
 export function Terminal({ terminalId, onResize }: TerminalProps) {
@@ -106,7 +152,7 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     const el = containerRef.current;
     if (!el) return;
 
-    const term = new XTerm(TERMINAL_OPTIONS);
+    const term = new XTerm({ ...TERMINAL_OPTIONS, theme: getXtermTheme() });
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
 
@@ -250,6 +296,16 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     [terminalId]
   );
   useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
+
+  // Sync xterm theme on theme-changed event
+  useEffect(() => {
+    const updateXtermTheme = () => {
+      if (!termRef.current) return;
+      termRef.current.options.theme = getXtermTheme();
+    };
+    document.addEventListener('theme-changed', updateXtermTheme);
+    return () => document.removeEventListener('theme-changed', updateXtermTheme);
+  }, []);
 
   // Re-fit when the element becomes visible (tab switch)
   // Always force a resize IPC on visibility change to send SIGWINCH,

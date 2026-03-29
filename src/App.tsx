@@ -4,6 +4,8 @@ import { useConfigStore } from './stores/config';
 import { useTerminalsStore, buildSessionSnapshot } from './stores/terminals';
 import { useProjectsStore } from './stores/projects';
 import { useUiStore } from './stores/ui';
+import { useThemeStore } from './stores/theme';
+import type { ThemeName } from './stores/theme';
 import { useTauriEvent } from './hooks/useTauriEvent';
 import { AppLayout } from './components/AppLayout';
 import { TabBar } from './components/TabBar';
@@ -246,6 +248,15 @@ function App() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // Apply theme from config on load
+  useEffect(() => {
+    if (!config) return;
+    const themeName = (config.preferences?.theme || 'dark') as ThemeName;
+    const customColors = config.preferences?.custom_theme ?? null;
+    useThemeStore.getState().applyTheme(themeName, customColors);
+    useThemeStore.getState().commitTheme();
+  }, [config]);
 
   // Start git polling once config is loaded
   useEffect(() => {
