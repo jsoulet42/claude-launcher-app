@@ -91,6 +91,25 @@ pub struct TerminalErrorEvent {
     pub error: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaudeDoneEvent {
+    pub id: String,
+    pub title: String,
+    pub timestamp: u64,
+    pub last_message: Option<String>,
+}
+
+// ─── Claude state for OSC title detection ───────────────────────────────────
+
+/// Tracks Claude Code agent state by parsing OSC title sequences.
+/// Stored locally in the reader thread to avoid deadlocks.
+struct ClaudeState {
+    is_working: bool,
+    last_title: String,
+    osc_buffer: String,
+    last_output_buffer: String,
+}
+
 // ─── Internal terminal struct ────────────────────────────────────────────────
 
 /// Internal terminal state — not serialized, holds the ConPty and reader task.
@@ -331,12 +350,17 @@ impl TerminalManager {
 fn resolve_shell(shell: Option<String>) -> String {
     let raw = match shell {
         Some(s) if !s.is_empty() => s,
-        _ => std::env::var("COMSPEC").unwrap_or_else(|_| "pwsh.exe".to_string()),
+        _ => "pwsh.exe".to_string(),
     };
 
     // Shells need specific flags to stay interactive in a ConPTY.
     // Without -NoExit, pwsh opens, runs the profile, and immediately exits.
-    let base = raw.trim().to_lowercase();
+    // Extract just the filename for comparison (COMSPEC returns full path like C:\WINDOWS\system32\cmd.exe)
+    let base = std::path::Path::new(raw.trim())
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or(raw.trim())
+        .to_lowercase();
     if base == "pwsh" || base == "pwsh.exe" || base == "powershell" || base == "powershell.exe" {
         format!("{} -NoExit", raw.trim())
     } else if base == "cmd" || base == "cmd.exe" {
@@ -347,6 +371,197 @@ fn resolve_shell(shell: Option<String>) -> String {
         // The command runs first, then pwsh stays open for further interaction.
         format!("pwsh.exe -NoExit -Command {}", raw.trim())
     }
+}
+
+// ─── OSC title parser for Claude detection ──────────────────────────────────
+
+/// Braille spinner characters used by Claude Code when working.
+const BRAILLE_SPINNERS: &[char] = &['\u{2802}', '\u{2810}', '\u{2808}', '\u{2801}', '\u{2804}', '\u{2820}'];
+
+/// Star character emitted by Claude Code when done.
+const CLAUDE_DONE_CHAR: char = '\u{2733}'; // ✳
+
+/// Strip ANSI escape sequences from a string (best-effort, fast).
+fn strip_ansi(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // Skip CSI sequences: ESC [ ... final_byte
+            if chars.peek() == Some(&'[') {
+                chars.next(); // consume '['
+                loop {
+                    match chars.next() {
+                        Some(c) if (0x40..=0x7E).contains(&(c as u32)) => break,
+                        None => break,
+                        _ => {}
+                    }
+                }
+            } else if chars.peek() == Some(&']') {
+                // Skip OSC sequences: ESC ] ... BEL or ST
+                chars.next();
+                loop {
+                    match chars.next() {
+                        Some('\x07') => break,
+                        Some('\x1b') => {
+                            if chars.peek() == Some(&'\\') {
+                                chars.next();
+                            }
+                            break;
+                        }
+                        None => break,
+                        _ => {}
+                    }
+                }
+            } else {
+                // Skip other escape sequences (2-byte)
+                chars.next();
+            }
+        } else if c == '\x07' || c == '\x0e' || c == '\x0f' {
+            // Skip BEL and shift chars
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// Parse OSC title sequences from terminal output data.
+/// Detects Claude Code spinner→done transitions and emits `claude:done` events.
+fn parse_osc_titles(
+    data: &str,
+    state: &mut ClaudeState,
+    id: &str,
+    app_handle: &AppHandle,
+) {
+    // Accumulate stripped output for last_message extraction
+    let stripped = strip_ansi(data);
+    state.last_output_buffer.push_str(&stripped);
+    if state.last_output_buffer.len() > 500 {
+        // Keep last 500 chars (char-safe: use char_indices to find boundary)
+        let char_count = state.last_output_buffer.chars().count();
+        if char_count > 500 {
+            let skip = char_count - 500;
+            if let Some((byte_idx, _)) = state.last_output_buffer.char_indices().nth(skip) {
+                state.last_output_buffer.drain(..byte_idx);
+            }
+        }
+    }
+
+    // Prepend any buffered partial OSC sequence
+    let scan = if state.osc_buffer.is_empty() {
+        data.to_string()
+    } else {
+        let mut combined = std::mem::take(&mut state.osc_buffer);
+        combined.push_str(data);
+        combined
+    };
+
+    let osc_start = "\x1b]0;";
+    let osc_end = '\x07';
+
+    let mut pos = 0;
+    let bytes = scan.as_bytes();
+    let len = bytes.len();
+
+    while pos < len {
+        // Find next OSC start
+        if let Some(rel) = scan[pos..].find(osc_start) {
+            let start = pos + rel + osc_start.len();
+            // Find the BEL terminator
+            if let Some(end_rel) = scan[start..].find(osc_end) {
+                let title = &scan[start..start + end_rel];
+                process_osc_title(title, state, id, app_handle);
+                pos = start + end_rel + 1;
+            } else {
+                // Incomplete OSC — buffer it
+                state.osc_buffer = scan[pos + rel..].to_string();
+                if state.osc_buffer.len() > 500 {
+                    tracing::warn!(
+                        "OSC buffer exceeded 500 chars for terminal {}, resetting",
+                        id
+                    );
+                    state.osc_buffer.clear();
+                }
+                return;
+            }
+        } else {
+            break;
+        }
+    }
+}
+
+/// Process a single extracted OSC title string.
+fn process_osc_title(
+    title: &str,
+    state: &mut ClaudeState,
+    id: &str,
+    app_handle: &AppHandle,
+) {
+    let first_char = match title.chars().next() {
+        Some(c) => c,
+        None => return,
+    };
+
+    tracing::debug!("OSC title for terminal {}: {:?}", id, title);
+
+    if BRAILLE_SPINNERS.contains(&first_char) {
+        state.is_working = true;
+        // Store the title after the spinner + space
+        let rest = title.trim_start_matches(|c: char| BRAILLE_SPINNERS.contains(&c) || c == ' ');
+        state.last_title = rest.to_string();
+    } else if first_char == CLAUDE_DONE_CHAR && state.is_working {
+        // Transition: working → done
+        let rest = title.trim_start_matches(|c: char| c == CLAUDE_DONE_CHAR || c == ' ');
+        let conv_title = if rest.is_empty() {
+            state.last_title.clone()
+        } else {
+            rest.to_string()
+        };
+
+        // Extract last_message: look for ● in the output buffer
+        let last_message = extract_last_message(&state.last_output_buffer);
+
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
+        let event = ClaudeDoneEvent {
+            id: id.to_string(),
+            title: conv_title.clone(),
+            timestamp,
+            last_message,
+        };
+
+        tracing::info!("claude:done detected for terminal {}: {}", id, conv_title);
+
+        let _ = app_handle.emit("claude:done", event);
+
+        state.is_working = false;
+        state.last_title = conv_title;
+    } else if first_char == CLAUDE_DONE_CHAR {
+        // Idle title (✳ Claude Code) — not a transition, ignore
+        let rest = title.trim_start_matches(|c: char| c == CLAUDE_DONE_CHAR || c == ' ');
+        if !rest.is_empty() {
+            state.last_title = rest.to_string();
+        }
+    }
+}
+
+/// Extract the last message from the output buffer by looking for ● marker.
+fn extract_last_message(buffer: &str) -> Option<String> {
+    // Look for the ● (U+25CF) character which precedes Claude's last response
+    if let Some(pos) = buffer.rfind('\u{25CF}') {
+        let after = &buffer[pos + '\u{25CF}'.len_utf8()..];
+        let trimmed = after.trim();
+        if !trimmed.is_empty() {
+            // Take first 200 chars max
+            let msg: String = trimmed.chars().take(200).collect();
+            return Some(msg);
+        }
+    }
+    None
 }
 
 // ─── Output reader + process watcher threads ───────────────────────────────
@@ -385,6 +600,12 @@ fn spawn_reader(
         .spawn(move || {
             let mut buf = [0u8; 4096];
             let mut pending: Vec<u8> = Vec::new(); // incomplete UTF-8 bytes
+            let mut claude_state = ClaudeState {
+                is_working: false,
+                last_title: String::new(),
+                osc_buffer: String::new(),
+                last_output_buffer: String::new(),
+            };
 
             loop {
                 match conpty.read(&mut buf) {
@@ -425,6 +646,15 @@ fn spawn_reader(
 
                         if valid_len > 0 {
                             let data = String::from_utf8_lossy(&data_bytes[..valid_len]).to_string();
+
+                            // Parse OSC titles for Claude detection BEFORE emitting output
+                            // Wrapped in catch_unwind to prevent parser bugs from killing the reader
+                            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                parse_osc_titles(&data, &mut claude_state, &id, &app_handle);
+                            })).map_err(|e| {
+                                tracing::error!("OSC parser panicked for terminal {}: {:?}", id, e);
+                            });
+
                             let _ = app_handle.emit(
                                 "terminal:output",
                                 TerminalOutputEvent {

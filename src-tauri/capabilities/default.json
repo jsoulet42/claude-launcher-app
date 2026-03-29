@@ -11,6 +11,8 @@
     "core:window:allow-start-dragging",
     "core:window:allow-set-focus",
     "core:event:allow-listen",
-    "core:event:allow-emit"
+    "core:event:allow-emit",
+    "notification:default",
+    "core:window:allow-request-user-attention"
   ]
 }

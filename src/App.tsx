@@ -9,7 +9,9 @@ import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
 import { ProjectDetail } from './components/ProjectDetail';
 import { PresetDetail } from './components/PresetDetail';
-import type { TerminalExitEvent, TerminalErrorEvent, TerminalOutputEvent } from './types/ipc';
+import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import type { TerminalExitEvent, TerminalErrorEvent, TerminalOutputEvent, ClaudeDoneEvent } from './types/ipc';
 import './App.css';
 
 function WelcomeScreen() {
@@ -69,10 +71,71 @@ function TerminalArea() {
   const updateLastActivity = useTerminalsStore(
     (s) => s.updateLastActivity
   );
+  const addAlert = useTerminalsStore((s) => s.addAlert);
+  const updateClaudeTitle = useTerminalsStore((s) => s.updateClaudeTitle);
   const selectedProject = useProjectsStore((s) => s.selectedProject);
   const showProjectDetail = useUiStore((s) => s.showProjectDetail);
   const showPresetDetail = useUiStore((s) => s.showPresetDetail);
   const selectedPreset = useUiStore((s) => s.selectedPreset);
+
+  // Request notification permission on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        let granted = await isPermissionGranted();
+        if (!granted) {
+          const perm = await requestPermission();
+          granted = perm === 'granted';
+        }
+        if (!granted) {
+          console.error('Notification permission denied');
+        }
+      } catch (err) {
+        console.error('Failed to check notification permission:', err);
+      }
+    })();
+  }, []);
+
+  // Global listener: claude:done — alert + notification + taskbar flash
+  const lastDoneRef = useRef<Record<string, number>>({});
+  const handleClaudeDone = useCallback(
+    (payload: ClaudeDoneEvent) => {
+      const now = Date.now();
+      const lastTs = lastDoneRef.current[payload.id] ?? 0;
+      // Debounce: ignore if last done was less than 3s ago
+      if (now - lastTs < 3000) return;
+      lastDoneRef.current[payload.id] = now;
+
+      addAlert(payload.id);
+      updateClaudeTitle(payload.id, payload.title);
+
+      // Send OS notification
+      (async () => {
+        try {
+          const granted = await isPermissionGranted();
+          if (granted) {
+            sendNotification({
+              title: 'Claude a termin\u00e9',
+              body: `${payload.title}${payload.last_message ? '\n' + payload.last_message : ''}`,
+            });
+          }
+        } catch (err) {
+          console.error('Failed to send notification:', err);
+        }
+      })();
+
+      // Flash taskbar
+      (async () => {
+        try {
+          await getCurrentWindow().requestUserAttention(2);
+        } catch (err) {
+          console.error('Failed to request user attention:', err);
+        }
+      })();
+    },
+    [addAlert, updateClaudeTitle]
+  );
+  useTauriEvent<ClaudeDoneEvent>('claude:done', handleClaudeDone);
 
   // Global listener: update terminal status on exit (with exitCode)
   const handleExit = useCallback(

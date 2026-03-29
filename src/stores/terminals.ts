@@ -39,7 +39,7 @@ function uuid(): string {
   return crypto.randomUUID();
 }
 
-function collectTerminalIds(node: LayoutNode): string[] {
+export function collectTerminalIds(node: LayoutNode): string[] {
   if (node.type === 'terminal') return [node.terminalId];
   return [
     ...collectTerminalIds(node.children[0]),
@@ -120,6 +120,9 @@ interface TerminalsState {
   activeWorkspaceId: string | null;
   terminals: Record<string, TerminalInfo>;
   lastActivity: Record<string, number>;
+  alertingTerminalIds: string[];
+  claudeTitles: Record<string, string>;
+  lastDoneTimestamp: Record<string, number>;
 
   createWorkspace: (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => Promise<string>;
   closeWorkspace: (workspaceId: string) => Promise<void>;
@@ -150,6 +153,12 @@ interface TerminalsState {
   updateLastActivity: (terminalId: string) => void;
   removeTerminal: (terminalId: string) => void;
 
+  addAlert: (terminalId: string) => void;
+  clearAlert: (terminalId: string) => void;
+  clearAlertsForTerminals: (ids: string[]) => void;
+  updateClaudeTitle: (terminalId: string, title: string) => void;
+  isAlerting: (terminalId: string) => boolean;
+
   activeWorkspace: () => Workspace | undefined;
   terminalCount: () => number;
 }
@@ -159,6 +168,9 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   activeWorkspaceId: null,
   terminals: {},
   lastActivity: {},
+  alertingTerminalIds: [],
+  claudeTitles: {},
+  lastDoneTimestamp: {},
 
   createWorkspace: async (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
     const wsId = uuid();
@@ -223,7 +235,13 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     set((s) => {
       const remaining = s.workspaces.filter((w) => w.id !== workspaceId);
       const newTerminals = { ...s.terminals };
-      terminalIds.forEach((id) => delete newTerminals[id]);
+      const newClaudeTitles = { ...s.claudeTitles };
+      const newLastDone = { ...s.lastDoneTimestamp };
+      terminalIds.forEach((id) => {
+        delete newTerminals[id];
+        delete newClaudeTitles[id];
+        delete newLastDone[id];
+      });
 
       let newActive = s.activeWorkspaceId;
       if (newActive === workspaceId) {
@@ -234,6 +252,9 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
         workspaces: remaining,
         activeWorkspaceId: newActive,
         terminals: newTerminals,
+        alertingTerminalIds: s.alertingTerminalIds.filter((id) => !terminalIds.includes(id)),
+        claudeTitles: newClaudeTitles,
+        lastDoneTimestamp: newLastDone,
       };
     });
   },
@@ -412,7 +433,13 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       set((s) => {
         const remaining = s.workspaces.filter((w) => w.id !== workspaceId);
         const newTerminals = { ...s.terminals };
-        if (terminalId) delete newTerminals[terminalId];
+        const newClaudeTitles = { ...s.claudeTitles };
+        const newLastDone = { ...s.lastDoneTimestamp };
+        if (terminalId) {
+          delete newTerminals[terminalId];
+          delete newClaudeTitles[terminalId];
+          delete newLastDone[terminalId];
+        }
 
         let newActive = s.activeWorkspaceId;
         if (newActive === workspaceId) {
@@ -426,18 +453,34 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
           workspaces: remaining,
           activeWorkspaceId: newActive,
           terminals: newTerminals,
+          alertingTerminalIds: terminalId
+            ? s.alertingTerminalIds.filter((id) => id !== terminalId)
+            : s.alertingTerminalIds,
+          claudeTitles: newClaudeTitles,
+          lastDoneTimestamp: newLastDone,
         };
       });
     } else {
       set((s) => {
         const newTerminals = { ...s.terminals };
-        if (terminalId) delete newTerminals[terminalId];
+        const newClaudeTitles = { ...s.claudeTitles };
+        const newLastDone = { ...s.lastDoneTimestamp };
+        if (terminalId) {
+          delete newTerminals[terminalId];
+          delete newClaudeTitles[terminalId];
+          delete newLastDone[terminalId];
+        }
 
         return {
           workspaces: s.workspaces.map((w) =>
             w.id === workspaceId ? { ...w, layout: newLayout } : w
           ),
           terminals: newTerminals,
+          alertingTerminalIds: terminalId
+            ? s.alertingTerminalIds.filter((id) => id !== terminalId)
+            : s.alertingTerminalIds,
+          claudeTitles: newClaudeTitles,
+          lastDoneTimestamp: newLastDone,
         };
       });
     }
@@ -485,6 +528,35 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       delete newLastActivity[terminalId];
       return { terminals: newTerminals, lastActivity: newLastActivity };
     });
+  },
+
+  addAlert: (terminalId: string) => {
+    set((s) => {
+      if (s.alertingTerminalIds.includes(terminalId)) return s;
+      return { alertingTerminalIds: [...s.alertingTerminalIds, terminalId] };
+    });
+  },
+
+  clearAlert: (terminalId: string) => {
+    set((s) => ({
+      alertingTerminalIds: s.alertingTerminalIds.filter((id) => id !== terminalId),
+    }));
+  },
+
+  clearAlertsForTerminals: (ids: string[]) => {
+    set((s) => ({
+      alertingTerminalIds: s.alertingTerminalIds.filter((id) => !ids.includes(id)),
+    }));
+  },
+
+  updateClaudeTitle: (terminalId: string, title: string) => {
+    set((s) => ({
+      claudeTitles: { ...s.claudeTitles, [terminalId]: title },
+    }));
+  },
+
+  isAlerting: (terminalId: string) => {
+    return get().alertingTerminalIds.includes(terminalId);
   },
 
   activeWorkspace: () => {

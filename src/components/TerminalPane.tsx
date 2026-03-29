@@ -20,6 +20,8 @@ const STATUS_TITLES: Record<string, string> = {
 export function TerminalPane(props: TerminalPaneProps) {
   const { terminalId, onClose, onSplit } = props;
   const terminal = useTerminalsStore((s) => s.terminals[terminalId]);
+  const isAlerting = useTerminalsStore((s) => s.alertingTerminalIds.includes(terminalId));
+  const clearAlert = useTerminalsStore((s) => s.clearAlert);
   const lastActivityTs = useTerminalsStore(
     (s) => s.lastActivity[terminalId] ?? 0
   );
@@ -78,8 +80,12 @@ export function TerminalPane(props: TerminalPaneProps) {
     }
   }, [lastActivityTs, status, triggerPulse]);
 
+  const dismissAlert = useCallback(() => {
+    if (isAlerting) clearAlert(terminalId);
+  }, [isAlerting, clearAlert, terminalId]);
+
   return (
-    <div className="terminal-pane">
+    <div className={`terminal-pane${isAlerting ? ' terminal-pane--alerting' : ''}`}>
       <div className="terminal-pane-header">
         <span className="terminal-pane-shell">{shell}</span>
         <span
@@ -143,7 +149,11 @@ export function TerminalPane(props: TerminalPaneProps) {
           &#x2715;
         </button>
       </div>
-      <div className="terminal-pane-body">
+      <div
+        className="terminal-pane-body"
+        onClick={dismissAlert}
+        onKeyDown={dismissAlert}
+      >
         <Terminal terminalId={terminalId} />
       </div>
     </div>

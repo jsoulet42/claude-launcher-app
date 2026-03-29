@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useTerminalsStore } from '../stores/terminals';
+import { useTerminalsStore, collectTerminalIds } from '../stores/terminals';
 import { useUiStore } from '../stores/ui';
 import './TabBar.css';
 
@@ -10,6 +10,7 @@ export function TabBar() {
   const closeWorkspace = useTerminalsStore((s) => s.closeWorkspace);
   const createWorkspace = useTerminalsStore((s) => s.createWorkspace);
   const renameWorkspace = useTerminalsStore((s) => s.renameWorkspace);
+  const alertingTerminalIds = useTerminalsStore((s) => s.alertingTerminalIds);
   const hideDetail = useUiStore((s) => s.hideDetail);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -46,12 +47,19 @@ export function TabBar() {
   return (
     <div className="tabbar">
       <div className="tabbar-tabs">
-        {workspaces.map((ws) => (
+        {workspaces.map((ws) => {
+          const wsTerminalIds = collectTerminalIds(ws.layout);
+          const isAlerting = wsTerminalIds.some((id) => alertingTerminalIds.includes(id));
+          return (
           <button
             key={ws.id}
-            className={`tabbar-tab${ws.id === activeWorkspaceId ? ' tabbar-tab--active' : ''}`}
-            onClick={() => { setActiveWorkspace(ws.id); hideDetail(); }}
+            className={`tabbar-tab${ws.id === activeWorkspaceId ? ' tabbar-tab--active' : ''}${isAlerting ? ' tabbar-tab--alerting' : ''}`}
+            onClick={() => {
+              setActiveWorkspace(ws.id);
+              hideDetail();
+            }}
             onDoubleClick={() => startRename(ws.id, ws.name)}
+            aria-live={isAlerting ? 'polite' : undefined}
           >
             <span
               className="tabbar-tab-color"
@@ -83,7 +91,8 @@ export function TabBar() {
               &#x2715;
             </button>
           </button>
-        ))}
+          );
+        })}
       </div>
       <button
         className="tabbar-add"
