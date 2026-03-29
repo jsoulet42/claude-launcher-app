@@ -4,6 +4,7 @@ mod conpty;
 mod error;
 mod git;
 mod scanner;
+mod session;
 mod terminal;
 
 use config::{ConfigData, ValidationLevel, ValidationMessage};
@@ -84,6 +85,9 @@ pub fn run() {
             scanner::scan_projects,
             scanner::detect_project_stack,
             commands::resolve_initial_commands,
+            session::save_session,
+            session::load_session,
+            session::clear_session,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

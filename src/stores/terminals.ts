@@ -4,6 +4,8 @@ import type {
   TerminalInfo,
   TerminalStatus,
   CreateTerminalResult,
+  SavedSession,
+  SavedLayoutNode,
 } from '../types/ipc';
 
 // --- Layout tree types ---
@@ -161,6 +163,8 @@ interface TerminalsState {
 
   activeWorkspace: () => Workspace | undefined;
   terminalCount: () => number;
+
+  restoreSession: (session: SavedSession) => Promise<void>;
 }
 
 export const useTerminalsStore = create<TerminalsState>((set, get) => ({
@@ -569,4 +573,158 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     return Object.values(terminals).filter((t) => t.status === 'running')
       .length;
   },
+
+  restoreSession: async (session: SavedSession) => {
+    const restoredWorkspaces: Workspace[] = [];
+    const restoredTerminals: Record<string, TerminalInfo> = {};
+    const restoredActivity: Record<string, number> = {};
+
+    async function rebuildLayout(
+      saved: SavedLayoutNode
+    ): Promise<LayoutNode | null> {
+      if (saved.type === 'terminal') {
+        try {
+          const result = await invoke<CreateTerminalResult>(
+            'create_terminal',
+            {
+              params: {
+                shell: saved.shell,
+                cwd: saved.cwd,
+                cols: 120,
+                rows: 30,
+              },
+            }
+          );
+          const now = Date.now();
+          restoredTerminals[result.id] = {
+            id: result.id,
+            shell: saved.shell ?? 'pwsh',
+            cwd: saved.cwd ?? null,
+            cols: 120,
+            rows: 30,
+            status: 'running',
+            created_at: now,
+            exit_code: null,
+          };
+          restoredActivity[result.id] = now;
+          return {
+            id: uuid(),
+            type: 'terminal',
+            terminalId: result.id,
+          };
+        } catch (e) {
+          console.error('Failed to create terminal during restore:', e);
+          return null;
+        }
+      }
+
+      // Split: rebuild both children
+      const [left, right] = await Promise.all([
+        rebuildLayout(saved.children[0]),
+        rebuildLayout(saved.children[1]),
+      ]);
+
+      // If both children failed, skip this split
+      if (left === null && right === null) return null;
+      // If one child failed, return the other directly
+      if (left === null) return right;
+      if (right === null) return left;
+
+      return {
+        id: uuid(),
+        type: 'split' as const,
+        direction: saved.direction as 'horizontal' | 'vertical',
+        ratio: saved.ratio,
+        children: [left, right],
+      };
+    }
+
+    for (const savedWs of session.workspaces) {
+      try {
+        const layout = await rebuildLayout(savedWs.layout);
+        if (layout === null) continue;
+
+        workspaceCounter++;
+        restoredWorkspaces.push({
+          id: uuid(),
+          name: savedWs.name || `Terminal ${workspaceCounter}`,
+          color: savedWs.color ?? undefined,
+          layout,
+        });
+      } catch (e) {
+        console.error(
+          `Failed to restore workspace '${savedWs.name}':`,
+          e
+        );
+      }
+    }
+
+    if (restoredWorkspaces.length === 0) return;
+
+    const activeIndex = Math.min(
+      session.active_workspace_index,
+      restoredWorkspaces.length - 1
+    );
+
+    set({
+      workspaces: restoredWorkspaces,
+      activeWorkspaceId: restoredWorkspaces[activeIndex].id,
+      terminals: restoredTerminals,
+      lastActivity: restoredActivity,
+      alertingTerminalIds: [],
+      claudeTitles: {},
+      lastDoneTimestamp: {},
+    });
+  },
 }));
+
+// --- Session snapshot (standalone, reads store state) ---
+
+export function buildSessionSnapshot(): SavedSession | null {
+  const { workspaces, activeWorkspaceId, terminals } =
+    useTerminalsStore.getState();
+  if (workspaces.length === 0) return null;
+
+  // Filter out workspaces where all terminals have exited
+  const liveWorkspaces = workspaces.filter((ws) => {
+    const ids = collectTerminalIds(ws.layout);
+    return ids.some((id) => terminals[id]?.status === 'running');
+  });
+
+  if (liveWorkspaces.length === 0) return null;
+
+  const activeIndex = liveWorkspaces.findIndex(
+    (w) => w.id === activeWorkspaceId
+  );
+
+  function serializeLayout(node: LayoutNode): SavedLayoutNode {
+    if (node.type === 'terminal') {
+      const info = terminals[node.terminalId];
+      return {
+        type: 'terminal',
+        shell: info?.shell ?? 'pwsh',
+        cwd: info?.cwd ?? null,
+      };
+    }
+    return {
+      type: 'split',
+      direction: node.direction,
+      ratio: node.ratio,
+      children: [
+        serializeLayout(node.children[0]),
+        serializeLayout(node.children[1]),
+      ],
+    };
+  }
+
+  return {
+    version: 1,
+    saved_at: new Date().toISOString(),
+    active_workspace_index: Math.max(0, activeIndex),
+    workspaces: liveWorkspaces.map((ws) => ({
+      name: ws.name,
+      color: ws.color ?? null,
+      layout: serializeLayout(ws.layout),
+    })),
+  };
+}

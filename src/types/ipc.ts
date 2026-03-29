@@ -100,6 +100,31 @@ export interface ClaudeDoneEvent {
   last_message: string | null;
 }
 
+// === Session IPC types (P25 — session-restore) ===
+// Miroir exact des structs Rust dans src-tauri/src/session.rs
+
+export interface SavedSession {
+  version: number;
+  saved_at: string;
+  active_workspace_index: number;
+  workspaces: SavedWorkspace[];
+}
+
+export interface SavedWorkspace {
+  name: string;
+  color: string | null;
+  layout: SavedLayoutNode;
+}
+
+export type SavedLayoutNode =
+  | { type: 'terminal'; shell: string; cwd: string | null }
+  | {
+      type: 'split';
+      direction: 'horizontal' | 'vertical';
+      ratio: number;
+      children: [SavedLayoutNode, SavedLayoutNode];
+    };
+
 // === Git IPC types (P19 — git-rust) ===
 // Miroir exact des structs Rust dans src-tauri/src/git.rs
 
