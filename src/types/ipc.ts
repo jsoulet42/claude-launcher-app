@@ -162,6 +162,7 @@ export interface Preferences {
   scan_directories?: string[];
   auto_discover_projects?: boolean;
   daemon?: DaemonPrefs;
+  onboarding_completed?: boolean;
 }
 
 export interface DaemonPrefs {

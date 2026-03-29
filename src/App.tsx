@@ -9,6 +9,7 @@ import type { ThemeName } from './stores/theme';
 import { useTauriEvent } from './hooks/useTauriEvent';
 import { useHotkeys } from './hooks/useHotkeys';
 import { AppLayout } from './components/AppLayout';
+import { OnboardingWizard } from './components/OnboardingWizard';
 import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
 import { ProjectDetail } from './components/ProjectDetail';
@@ -294,6 +295,11 @@ function App() {
         await invoke('save_session', { session: snapshot }).catch(
           (e: unknown) => console.error('Session save on close failed:', e)
         );
+      } else {
+        // No live workspaces — clear any stale session file left by periodic save
+        await invoke('clear_session').catch(
+          (e: unknown) => console.error('Session clear on close failed:', e)
+        );
       }
       // Let the window close after saving
       await getCurrentWindow().destroy();
@@ -312,6 +318,9 @@ function App() {
           (e: unknown) =>
             console.error('Session periodic save failed:', e)
         );
+      } else {
+        // No live workspaces — clear stale session file so closed tabs don't come back
+        await invoke('clear_session').catch(() => {});
       }
     }, 30_000);
     return () => clearInterval(interval);
@@ -330,6 +339,18 @@ function App() {
       <div className="app-loading">
         <ErrorScreen message={error} />
       </div>
+    );
+  }
+
+  const hasProjects = config && Object.keys(config.projects).length > 0;
+  const onboardingDone = config?.preferences?.onboarding_completed;
+
+  if (config && !hasProjects && !onboardingDone) {
+    return (
+      <OnboardingWizard
+        onComplete={() => loadConfig()}
+        onSkip={() => loadConfig()}
+      />
     );
   }
 
