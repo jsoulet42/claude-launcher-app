@@ -18,8 +18,10 @@ const STATUS_TITLES: Record<string, string> = {
 };
 
 export function TerminalPane(props: TerminalPaneProps) {
-  const { terminalId, onClose, onSplit } = props;
+  const { paneId, terminalId, onClose, onSplit } = props;
   const terminal = useTerminalsStore((s) => s.terminals[terminalId]);
+  const isFocused = useTerminalsStore((s) => s.focusedPaneId === paneId);
+  const setFocusedPaneId = useTerminalsStore((s) => s.setFocusedPaneId);
   const projectColor = useTerminalsStore((s) => {
     const ws = s.workspaces.find(w => collectTerminalIds(w.layout).includes(terminalId));
     return ws?.color;
@@ -89,7 +91,10 @@ export function TerminalPane(props: TerminalPaneProps) {
   }, [isAlerting, clearAlert, terminalId]);
 
   return (
-    <div className={`terminal-pane${isAlerting ? ' terminal-pane--alerting' : ''}`}>
+    <div
+      className={`terminal-pane${isAlerting ? ' terminal-pane--alerting' : ''}${isFocused ? ' terminal-pane--focused' : ''}`}
+      onClick={() => setFocusedPaneId(paneId)}
+    >
       {projectColor && (
         <div
           className="terminal-pane-color-bar"

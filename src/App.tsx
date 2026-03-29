@@ -7,6 +7,7 @@ import { useUiStore } from './stores/ui';
 import { useThemeStore } from './stores/theme';
 import type { ThemeName } from './stores/theme';
 import { useTauriEvent } from './hooks/useTauriEvent';
+import { useHotkeys } from './hooks/useHotkeys';
 import { AppLayout } from './components/AppLayout';
 import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
@@ -239,6 +240,7 @@ function TerminalArea() {
 }
 
 function App() {
+  useHotkeys();
   const { loading, error, config, loadConfig } = useConfigStore();
   const startPolling = useProjectsStore((s) => s.startPolling);
   const stopPolling = useProjectsStore((s) => s.stopPolling);

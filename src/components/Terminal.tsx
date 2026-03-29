@@ -6,6 +6,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { useTauriEvent } from '../hooks/useTauriEvent';
+import { terminalRefs } from '../terminalRefs';
 import type { TerminalOutputEvent, TerminalExitEvent, TerminalErrorEvent } from '../types/ipc';
 import './Terminal.css';
 
@@ -208,9 +209,23 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       }).catch(() => {});
     });
 
+    // Register xterm instance for hotkey focus management
+    terminalRefs.set(terminalId, term);
+
     // Clipboard: Ctrl+C (copy if selection, else send to ConPTY) + Ctrl+V (paste)
     term.attachCustomKeyEventHandler((e: KeyboardEvent) => {
       if (e.type !== 'keydown') return true;
+
+      // Block hotkey combos from reaching ConPTY — let them bubble to useHotkeys
+      if (e.altKey && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
+        return false;
+      }
+      if (e.ctrlKey && e.shiftKey && ['h', 'v', 'w', 'n', 'b', 'H', 'V', 'W', 'N', 'B'].includes(e.key)) {
+        return false;
+      }
+      if (e.ctrlKey && e.key === 'Tab') {
+        return false;
+      }
 
       if (e.ctrlKey && e.key === 'c') {
         const selection = term.getSelection();
@@ -254,6 +269,7 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
       if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
       dataDisposable.dispose();
+      terminalRefs.delete(terminalId);
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;

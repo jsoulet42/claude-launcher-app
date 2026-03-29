@@ -166,6 +166,13 @@
   overflow: hidden;
 }
 
+/* ─── Focused pane (keyboard navigation) ────────────────────────────────── */
+
+.terminal-pane--focused {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
 /* ─── Alerting pane (claude:done) ────────────────────────────────────────── */
 
 .terminal-pane--alerting {
