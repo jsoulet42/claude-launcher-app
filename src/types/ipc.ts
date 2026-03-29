@@ -46,6 +46,8 @@ export interface TerminalInfo {
   cols: number;
   rows: number;
   status: TerminalStatus;
+  created_at: number;
+  exit_code: number | null;
 }
 
 // Command params
@@ -89,6 +91,13 @@ export interface TerminalExitEvent {
 export interface TerminalErrorEvent {
   id: string;
   error: string;
+}
+
+export interface ClaudeDoneEvent {
+  id: string;
+  title: string;
+  timestamp: number;
+  last_message: string | null;
 }
 
 // === Git IPC types (P19 — git-rust) ===

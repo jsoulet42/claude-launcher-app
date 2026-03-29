@@ -42,12 +42,63 @@
   background: var(--accent-yellow);
 }
 
+/* Pulse animation on output activity */
+@keyframes terminal-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.terminal-pane-status--pulse {
+  animation: terminal-pulse 600ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-pane-status--pulse {
+    animation: none;
+  }
+}
+
 .terminal-pane-cwd {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-muted);
+}
+
+.terminal-pane-uptime {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.terminal-pane-activity {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.terminal-pane-exit {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.terminal-pane-exit--ok {
+  color: var(--accent-green);
+}
+
+.terminal-pane-exit--fail {
+  color: var(--accent-red);
 }
 
 .terminal-pane-split-wrapper {
@@ -107,4 +158,36 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+/* ─── Alerting pane (claude:done) ────────────────────────────────────────── */
+
+.terminal-pane--alerting {
+  animation: pane-alert 1s ease-in-out infinite;
+}
+
+.terminal-pane--alerting .terminal-pane-header {
+  animation: pane-header-alert 1s ease-in-out infinite;
+}
+
+@keyframes pane-alert {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: inset 0 0 0 2px var(--accent-orange, #e67e22), 0 0 16px rgba(230, 126, 34, 0.3); }
+}
+
+@keyframes pane-header-alert {
+  0%, 100% { background: var(--bg-surface); }
+  50% { background: rgba(230, 126, 34, 0.15); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-pane--alerting {
+    animation: none;
+    box-shadow: inset 0 0 0 2px var(--accent-orange, #e67e22);
+  }
+
+  .terminal-pane--alerting .terminal-pane-header {
+    animation: none;
+    background: rgba(230, 126, 34, 0.15);
+  }
 }
