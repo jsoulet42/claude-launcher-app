@@ -2,6 +2,7 @@ import { useUiStore } from '../stores/ui';
 import { SidebarSection } from './SidebarSection';
 import { ProjectList } from './ProjectList';
 import { PresetList } from './PresetList';
+import { SettingsSidebarMenu } from './SettingsPanel';
 import './Sidebar.css';
 
 export function Sidebar() {
@@ -45,7 +46,7 @@ export function Sidebar() {
           active={activeSidebarSection === 'settings'}
           onActivate={() => setActiveSection('settings')}
         >
-          <p className="sidebar-placeholder">Phase 9</p>
+          <SettingsSidebarMenu expanded={sidebarExpanded} />
         </SidebarSection>
       </nav>
     </aside>

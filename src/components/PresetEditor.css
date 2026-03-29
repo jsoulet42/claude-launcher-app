@@ -1,0 +1,302 @@
+.preset-editor {
+  max-width: 800px;
+}
+
+.preset-editor-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.preset-editor-empty {
+  color: var(--text-secondary, #a6adc8);
+  font-size: 13px;
+}
+
+/* List */
+.preset-editor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preset-editor-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-secondary, #181825);
+  border-radius: 4px;
+}
+
+.preset-editor-item-name {
+  font-weight: 500;
+  font-size: 13px;
+  min-width: 100px;
+}
+
+.preset-editor-item-panels {
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--bg-active, #45475a);
+  color: var(--text-secondary, #a6adc8);
+}
+
+.preset-editor-item-desc {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary, #a6adc8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-editor-item-btn {
+  background: none;
+  border: 1px solid var(--border, #313244);
+  color: var(--text-secondary, #a6adc8);
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.preset-editor-item-btn:hover {
+  background: var(--bg-hover, #313244);
+  color: var(--text-primary, #cdd6f4);
+}
+
+.preset-editor-item-btn--danger:hover {
+  background: #f38ba8;
+  color: #1e1e2e;
+  border-color: #f38ba8;
+}
+
+.preset-editor-item-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* Toolbar */
+.preset-editor-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Split layout for form + preview */
+.preset-editor-split {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.preset-editor-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preset-editor-preview {
+  width: 250px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preset-editor-preview label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #a6adc8);
+}
+
+.preset-editor-layout-preview {
+  height: 200px;
+}
+
+/* Form fields */
+.preset-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preset-editor-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #a6adc8);
+}
+
+.preset-editor-input {
+  padding: 6px 10px;
+  background: var(--bg-secondary, #181825);
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  color: var(--text-primary, #cdd6f4);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.preset-editor-input:focus {
+  outline: none;
+  border-color: var(--accent, #89b4fa);
+}
+
+.preset-editor-input--readonly {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.preset-editor-select {
+  padding: 6px 10px;
+  background: var(--bg-secondary, #181825);
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  color: var(--text-primary, #cdd6f4);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.preset-editor-select:focus {
+  outline: none;
+  border-color: var(--accent, #89b4fa);
+}
+
+/* Panels */
+.preset-editor-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.preset-editor-panels > label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #a6adc8);
+}
+
+.preset-editor-panel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-secondary, #181825);
+  border-radius: 4px;
+}
+
+.preset-editor-panel-num {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary, #a6adc8);
+  width: 16px;
+  text-align: center;
+}
+
+.preset-editor-select--panel {
+  min-width: 130px;
+}
+
+.preset-editor-input--panel {
+  flex: 1;
+}
+
+.preset-editor-error {
+  font-size: 12px;
+  color: #f38ba8;
+}
+
+.preset-editor-save-error {
+  font-size: 13px;
+  color: #f38ba8;
+  padding: 8px;
+  background: rgba(243, 139, 168, 0.1);
+  border-radius: 4px;
+  white-space: pre-wrap;
+}
+
+/* Buttons */
+.preset-editor-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  background: var(--bg-secondary, #181825);
+  color: var(--text-primary, #cdd6f4);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.preset-editor-btn:hover {
+  background: var(--bg-hover, #313244);
+}
+
+.preset-editor-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.preset-editor-btn--primary {
+  background: var(--accent, #89b4fa);
+  color: #1e1e2e;
+  border-color: var(--accent, #89b4fa);
+  font-weight: 500;
+}
+
+.preset-editor-btn--primary:hover {
+  opacity: 0.9;
+}
+
+.preset-editor-btn--danger {
+  background: #f38ba8;
+  color: #1e1e2e;
+  border-color: #f38ba8;
+}
+
+.preset-editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Confirm dialog */
+.preset-editor-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.preset-editor-confirm {
+  background: var(--bg-primary, #1e1e2e);
+  border: 1px solid var(--border, #313244);
+  border-radius: 6px;
+  padding: 16px 20px;
+  max-width: 400px;
+}
+
+.preset-editor-confirm p {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.preset-editor-confirm-warning {
+  font-size: 12px;
+  color: #fab387;
+  padding: 6px 8px;
+  background: rgba(250, 179, 135, 0.1);
+  border-radius: 4px;
+}
+
+.preset-editor-confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}

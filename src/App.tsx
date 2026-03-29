@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useConfigStore } from './stores/config';
-import { useTerminalsStore } from './stores/terminals';
+import { useTerminalsStore, buildSessionSnapshot } from './stores/terminals';
 import { useProjectsStore } from './stores/projects';
 import { useUiStore } from './stores/ui';
 import { useTauriEvent } from './hooks/useTauriEvent';
@@ -9,9 +10,10 @@ import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
 import { ProjectDetail } from './components/ProjectDetail';
 import { PresetDetail } from './components/PresetDetail';
+import { SettingsPanel } from './components/SettingsPanel';
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { TerminalExitEvent, TerminalErrorEvent, TerminalOutputEvent, ClaudeDoneEvent } from './types/ipc';
+import type { TerminalExitEvent, TerminalErrorEvent, TerminalOutputEvent, ClaudeDoneEvent, SavedSession } from './types/ipc';
 import './App.css';
 
 function WelcomeScreen() {
@@ -76,6 +78,7 @@ function TerminalArea() {
   const selectedProject = useProjectsStore((s) => s.selectedProject);
   const showProjectDetail = useUiStore((s) => s.showProjectDetail);
   const showPresetDetail = useUiStore((s) => s.showPresetDetail);
+  const showSettings = useUiStore((s) => s.showSettings);
   const selectedPreset = useUiStore((s) => s.selectedPreset);
 
   // Request notification permission on mount
@@ -170,7 +173,20 @@ function TerminalArea() {
   );
   useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
 
-  // Priority: PresetDetail > ProjectDetail > Terminals > Welcome
+  // Priority: Settings > PresetDetail > ProjectDetail > Terminals > Welcome
+  // Settings overlay
+  if (showSettings) {
+    if (workspaces.length === 0) {
+      return <SettingsPanel />;
+    }
+    return (
+      <>
+        <TabBar />
+        <SettingsPanel />
+      </>
+    );
+  }
+
   // Preset detail overlay
   if (showPresetDetail && selectedPreset) {
     if (workspaces.length === 0) {
@@ -225,6 +241,8 @@ function App() {
   const startPolling = useProjectsStore((s) => s.startPolling);
   const stopPolling = useProjectsStore((s) => s.stopPolling);
 
+  const sessionRestoredRef = useRef(false);
+
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
@@ -236,6 +254,55 @@ function App() {
       return () => stopPolling();
     }
   }, [config, startPolling, stopPolling]);
+
+  // Session restore: load saved session on startup (once)
+  useEffect(() => {
+    if (!config || loading || sessionRestoredRef.current) return;
+    sessionRestoredRef.current = true;
+
+    (async () => {
+      try {
+        const session = await invoke<SavedSession | null>('load_session');
+        if (session && session.workspaces.length > 0) {
+          await useTerminalsStore.getState().restoreSession(session);
+          await invoke('clear_session');
+        }
+      } catch (e) {
+        console.error('Failed to restore session:', e);
+      }
+    })();
+  }, [config, loading]);
+
+  // Session save: on window close
+  useEffect(() => {
+    const unlisten = getCurrentWindow().onCloseRequested(async () => {
+      const snapshot = buildSessionSnapshot();
+      if (snapshot) {
+        await invoke('save_session', { session: snapshot }).catch(
+          (e: unknown) => console.error('Session save on close failed:', e)
+        );
+      }
+      // Let the window close after saving
+      await getCurrentWindow().destroy();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // Session save: periodic (every 30s, crash safety net)
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const snapshot = buildSessionSnapshot();
+      if (snapshot) {
+        await invoke('save_session', { session: snapshot }).catch(
+          (e: unknown) =>
+            console.error('Session periodic save failed:', e)
+        );
+      }
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, []);
 
   if (loading) {
     return (

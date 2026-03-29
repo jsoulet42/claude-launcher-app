@@ -100,6 +100,31 @@ export interface ClaudeDoneEvent {
   last_message: string | null;
 }
 
+// === Session IPC types (P25 — session-restore) ===
+// Miroir exact des structs Rust dans src-tauri/src/session.rs
+
+export interface SavedSession {
+  version: number;
+  saved_at: string;
+  active_workspace_index: number;
+  workspaces: SavedWorkspace[];
+}
+
+export interface SavedWorkspace {
+  name: string;
+  color: string | null;
+  layout: SavedLayoutNode;
+}
+
+export type SavedLayoutNode =
+  | { type: 'terminal'; shell: string; cwd: string | null }
+  | {
+      type: 'split';
+      direction: 'horizontal' | 'vertical';
+      ratio: number;
+      children: [SavedLayoutNode, SavedLayoutNode];
+    };
+
 // === Git IPC types (P19 — git-rust) ===
 // Miroir exact des structs Rust dans src-tauri/src/git.rs
 
@@ -133,6 +158,19 @@ export interface Preferences {
 export interface DaemonPrefs {
   enabled?: boolean;
   watch_interval_ms?: number;
+  notify_on_wait?: boolean;
+}
+
+// === Validation IPC types (P27 — config-wizard) ===
+// Miroir exact des structs Rust dans src-tauri/src/config.rs
+// Note: ValidationLevel Rust n'a pas de rename_all → PascalCase
+
+export type ValidationLevel = 'Error' | 'Warning';
+
+export interface ValidationMessage {
+  level: ValidationLevel;
+  path: string;
+  message: string;
 }
 
 // === Scanner IPC types (P20 — scanner-rust) ===
@@ -142,11 +180,13 @@ export type StackType =
   | 'dolibarr-module' | 'php' | 'node' | 'go'
   | 'rust' | 'dotnet' | 'python' | 'powershell' | 'unknown';
 
+// Noms snake_case — pas de rename_all sur le struct Rust ScanOptions
 export interface ScanOptions {
   directories: string[];
   max_depth?: number;
   existing_paths: string[];
 }
+
 
 export interface ScannedProject {
   slug: string;
@@ -158,4 +198,30 @@ export interface ScannedProject {
   stack_type: StackType;
   git_branch: string;
   icon: string;
+}
+
+// === History IPC types (P26 — history-engine) ===
+// Miroir exact des structs Rust dans src-tauri/src/history.rs
+
+export interface HistoryEntry {
+  timestamp: string;
+  preset: string;
+  projects: string[];
+  branches: Record<string, string>;
+  layout: string;
+}
+
+export interface ScoreBreakdown {
+  frequency: number;
+  recency: number;
+  time_of_day: number;
+  git_context: number;
+}
+
+export interface PresetSuggestion {
+  slug: string;
+  score: number;
+  breakdown: ScoreBreakdown;
+  reason: string;
+  is_suggested: boolean;
 }

@@ -3,7 +3,9 @@ mod config;
 mod conpty;
 mod error;
 mod git;
+mod history;
 mod scanner;
+mod session;
 mod terminal;
 
 use config::{ConfigData, ValidationLevel, ValidationMessage};
@@ -61,6 +63,7 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let handle = app.handle().clone();
             let manager = TerminalManager::new(handle);
@@ -84,6 +87,13 @@ pub fn run() {
             scanner::scan_projects,
             scanner::detect_project_stack,
             commands::resolve_initial_commands,
+            session::save_session,
+            session::load_session,
+            session::clear_session,
+            history::add_history_entry,
+            history::get_history,
+            history::get_last_launch,
+            history::get_preset_suggestions,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
