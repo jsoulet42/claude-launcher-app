@@ -119,6 +119,7 @@ interface TerminalsState {
   workspaces: Workspace[];
   activeWorkspaceId: string | null;
   terminals: Record<string, TerminalInfo>;
+  lastActivity: Record<string, number>;
 
   createWorkspace: (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => Promise<string>;
   closeWorkspace: (workspaceId: string) => Promise<void>;
@@ -143,8 +144,10 @@ interface TerminalsState {
 
   updateTerminalStatus: (
     terminalId: string,
-    status: TerminalStatus
+    status: TerminalStatus,
+    exitCode?: number
   ) => void;
+  updateLastActivity: (terminalId: string) => void;
   removeTerminal: (terminalId: string) => void;
 
   activeWorkspace: () => Workspace | undefined;
@@ -155,6 +158,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
   terminals: {},
+  lastActivity: {},
 
   createWorkspace: async (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
     const wsId = uuid();
@@ -174,6 +178,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       terminalId: result.id,
     };
 
+    const now = Date.now();
+
     const info: TerminalInfo = {
       id: result.id,
       shell: opts?.shell || 'pwsh.exe',
@@ -181,6 +187,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       cols,
       rows,
       status: 'running',
+      created_at: now,
+      exit_code: null,
     };
 
     const workspace: Workspace = {
@@ -194,6 +202,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       workspaces: [...s.workspaces, workspace],
       activeWorkspaceId: wsId,
       terminals: { ...s.terminals, [result.id]: info },
+      lastActivity: { ...s.lastActivity, [result.id]: now },
     }));
 
     return wsId;
@@ -261,6 +270,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       },
     });
 
+    const now = Date.now();
+
     const info: TerminalInfo = {
       id: result.id,
       shell: opts?.shell || 'pwsh.exe',
@@ -268,6 +279,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       cols,
       rows,
       status: 'running',
+      created_at: now,
+      exit_code: null,
     };
 
     const newPane: PaneNode = {
@@ -288,6 +301,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     if (existingTerminalId === null) {
       set((s) => ({
         terminals: { ...s.terminals, [result.id]: info },
+        lastActivity: { ...s.lastActivity, [result.id]: now },
       }));
       return result.id;
     }
@@ -313,6 +327,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
         w.id === workspaceId ? { ...w, layout: newLayout } : w
       ),
       terminals: { ...s.terminals, [result.id]: info },
+      lastActivity: { ...s.lastActivity, [result.id]: now },
     }));
 
     return result.id;
@@ -337,6 +352,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       terminalId: result.id,
     };
 
+    const now = Date.now();
+
     const info: TerminalInfo = {
       id: result.id,
       shell: 'pwsh.exe',
@@ -344,6 +361,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       cols: 80,
       rows: 24,
       status: 'running',
+      created_at: now,
+      exit_code: null,
     };
 
     const existingPane = findPaneTerminalId(ws.layout, paneId);
@@ -370,6 +389,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
         w.id === workspaceId ? { ...w, layout: newLayout } : w
       ),
       terminals: { ...s.terminals, [result.id]: info },
+      lastActivity: { ...s.lastActivity, [result.id]: now },
     }));
   },
 
@@ -434,24 +454,36 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     }));
   },
 
-  updateTerminalStatus: (terminalId: string, status: TerminalStatus) => {
+  updateTerminalStatus: (terminalId: string, status: TerminalStatus, exitCode?: number) => {
     set((s) => {
       const terminal = s.terminals[terminalId];
       if (!terminal) return s;
       return {
         terminals: {
           ...s.terminals,
-          [terminalId]: { ...terminal, status },
+          [terminalId]: {
+            ...terminal,
+            status,
+            exit_code: exitCode !== undefined ? exitCode : terminal.exit_code,
+          },
         },
       };
     });
+  },
+
+  updateLastActivity: (terminalId: string) => {
+    set((s) => ({
+      lastActivity: { ...s.lastActivity, [terminalId]: Date.now() },
+    }));
   },
 
   removeTerminal: (terminalId: string) => {
     set((s) => {
       const newTerminals = { ...s.terminals };
       delete newTerminals[terminalId];
-      return { terminals: newTerminals };
+      const newLastActivity = { ...s.lastActivity };
+      delete newLastActivity[terminalId];
+      return { terminals: newTerminals, lastActivity: newLastActivity };
     });
   },
 

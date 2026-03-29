@@ -46,6 +46,8 @@ export interface TerminalInfo {
   cols: number;
   rows: number;
   status: TerminalStatus;
+  created_at: number;
+  exit_code: number | null;
 }
 
 // Command params

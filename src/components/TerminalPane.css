@@ -42,12 +42,63 @@
   background: var(--accent-yellow);
 }
 
+/* Pulse animation on output activity */
+@keyframes terminal-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.terminal-pane-status--pulse {
+  animation: terminal-pulse 600ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terminal-pane-status--pulse {
+    animation: none;
+  }
+}
+
 .terminal-pane-cwd {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-muted);
+}
+
+.terminal-pane-uptime {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.terminal-pane-activity {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.terminal-pane-exit {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.terminal-pane-exit--ok {
+  color: var(--accent-green);
+}
+
+.terminal-pane-exit--fail {
+  color: var(--accent-red);
 }
 
 .terminal-pane-split-wrapper {

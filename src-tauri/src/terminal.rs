@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use std::thread::JoinHandle;
@@ -33,6 +34,8 @@ pub struct TerminalInfo {
     pub cols: u16,
     pub rows: u16,
     pub status: TerminalStatus,
+    pub created_at: u64,
+    pub exit_code: Option<i32>,
 }
 
 // ─── IPC param / result structs ──────────────────────────────────────────────
@@ -153,6 +156,11 @@ impl TerminalManager {
 
         let conpty = Arc::new(conpty);
 
+        let created_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+
         let info = TerminalInfo {
             id: id.clone(),
             shell: resolved_shell,
@@ -160,6 +168,8 @@ impl TerminalManager {
             cols,
             rows,
             status: TerminalStatus::Running,
+            created_at,
+            exit_code: None,
         };
 
         // Spawn the output reader task
@@ -392,6 +402,7 @@ fn spawn_reader(
                         if let Ok(mut map) = terminals.lock() {
                             if let Some(t) = map.get_mut(&id) {
                                 t.info.status = TerminalStatus::Exited;
+                                t.info.exit_code = Some(code);
                             }
                         }
                         break;

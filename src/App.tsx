@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useConfigStore } from './stores/config';
 import { useTerminalsStore } from './stores/terminals';
 import { useProjectsStore } from './stores/projects';
@@ -9,7 +9,7 @@ import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
 import { ProjectDetail } from './components/ProjectDetail';
 import { PresetDetail } from './components/PresetDetail';
-import type { TerminalExitEvent, TerminalErrorEvent } from './types/ipc';
+import type { TerminalExitEvent, TerminalErrorEvent, TerminalOutputEvent } from './types/ipc';
 import './App.css';
 
 function WelcomeScreen() {
@@ -66,19 +66,37 @@ function TerminalArea() {
   const updateTerminalStatus = useTerminalsStore(
     (s) => s.updateTerminalStatus
   );
+  const updateLastActivity = useTerminalsStore(
+    (s) => s.updateLastActivity
+  );
   const selectedProject = useProjectsStore((s) => s.selectedProject);
   const showProjectDetail = useUiStore((s) => s.showProjectDetail);
   const showPresetDetail = useUiStore((s) => s.showPresetDetail);
   const selectedPreset = useUiStore((s) => s.selectedPreset);
 
-  // Global listener: update terminal status on exit
+  // Global listener: update terminal status on exit (with exitCode)
   const handleExit = useCallback(
     (payload: TerminalExitEvent) => {
-      updateTerminalStatus(payload.id, 'exited');
+      updateTerminalStatus(payload.id, 'exited', payload.code);
     },
     [updateTerminalStatus]
   );
   useTauriEvent<TerminalExitEvent>('terminal:exit', handleExit);
+
+  // Global listener: track last activity on output (throttled to 1s)
+  const lastActivityTimestamps = useRef<Record<string, number>>({});
+  const handleOutput = useCallback(
+    (payload: TerminalOutputEvent) => {
+      const now = Date.now();
+      const last = lastActivityTimestamps.current[payload.id] ?? 0;
+      if (now - last >= 1000) {
+        lastActivityTimestamps.current[payload.id] = now;
+        updateLastActivity(payload.id);
+      }
+    },
+    [updateLastActivity]
+  );
+  useTauriEvent<TerminalOutputEvent>('terminal:output', handleOutput);
 
   // Global listener: update terminal status on error
   const handleError = useCallback(
