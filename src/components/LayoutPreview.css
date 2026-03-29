@@ -28,9 +28,9 @@
 }
 
 .layout-preview-cell--auto {
-  border: 1px dashed var(--text-muted);
+  border: 1px dashed var(--text-secondary);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .layout-preview-cell-project {
@@ -44,13 +44,13 @@
 }
 
 .layout-preview-cell--auto .layout-preview-cell-project {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-weight: 400;
 }
 
 .layout-preview-cell-command {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--accent);
   font-family: var(--font-mono);
   white-space: nowrap;
   overflow: hidden;

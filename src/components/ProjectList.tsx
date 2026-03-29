@@ -42,7 +42,7 @@ export function ProjectList({ expanded }: ProjectListProps) {
 
   return (
     <div className={`project-list ${expanded ? '' : 'project-list--collapsed'}`}>
-      <ul className="project-list-items">
+      <div className="project-list-items">
         {projects.map(([slug, project]) => {
           const git = gitInfo[slug];
           const isSelected = selectedProject === slug;
@@ -50,42 +50,58 @@ export function ProjectList({ expanded }: ProjectListProps) {
           const pathExists = git?.exists ?? true;
           const dirtyCount = git?.dirty_count ?? 0;
           const stack = stackTypes[slug];
+          const color = project.color || '#6c7086';
+
+          if (!expanded) {
+            return (
+              <div
+                key={slug}
+                className={`project-card project-card--collapsed ${isSelected ? 'project-card--selected' : ''}`}
+                onClick={() => handleProjectClick(slug)}
+                title={`${project.name}${isGit ? ` — ${git.branch}` : ''}${!pathExists ? ' (introuvable)' : ''}`}
+              >
+                <span
+                  className="project-item-color"
+                  style={{ backgroundColor: color }}
+                />
+              </div>
+            );
+          }
 
           return (
-            <li
+            <div
               key={slug}
-              className={`project-item ${isSelected ? 'project-item--selected' : ''} ${!pathExists ? 'project-item--warning' : ''}`}
+              className={`project-card ${isSelected ? 'project-card--selected' : ''} ${!pathExists ? 'project-card--warning' : ''}`}
               onClick={() => handleProjectClick(slug)}
-              title={
-                expanded
-                  ? (!pathExists ? 'Dossier introuvable' : undefined)
-                  : `${project.name}${isGit ? ` — ${git.branch}` : ''}${!pathExists ? ' (introuvable)' : ''}`
-              }
+              style={{ borderLeftColor: color, '--project-glow': `${color}40` } as React.CSSProperties}
+              title={!pathExists ? 'Dossier introuvable' : undefined}
             >
-              <span
-                className="project-item-color"
-                style={{ backgroundColor: project.color || '#6c7086' }}
-              />
-              {!pathExists && expanded && (
-                <span className="project-item-warning-icon">&#x26A0;</span>
-              )}
-              <span className="project-item-label">{project.name}</span>
-              {isGit && (
-                <span className="project-item-branch">{git.branch}</span>
-              )}
-              {!isGit && git && (
-                <span className="project-item-nogit">Pas de repo git</span>
-              )}
-              {dirtyCount > 0 && (
-                <span className="project-item-dirty">{dirtyCount}</span>
-              )}
-              {stack && stack !== 'unknown' && (
-                <span className="project-item-stack">{stack}</span>
-              )}
-            </li>
+              <div className="project-card__body">
+                <div className="project-card__top-row">
+                  <span className="project-card__name">{project.name}</span>
+                  {!pathExists && (
+                    <span className="project-card__warning-icon">&#x26A0;</span>
+                  )}
+                  {stack && stack !== 'unknown' && (
+                    <span className="project-card__stack">{stack}</span>
+                  )}
+                </div>
+                <div className="project-card__bottom-row">
+                  {isGit && (
+                    <span className="project-card__branch">{git.branch}</span>
+                  )}
+                  {!isGit && git && (
+                    <span className="project-card__nogit">Pas de repo git</span>
+                  )}
+                  {dirtyCount > 0 && (
+                    <span className="project-card__dirty">{dirtyCount}</span>
+                  )}
+                </div>
+              </div>
+            </div>
           );
         })}
-      </ul>
+      </div>
     </div>
   );
 }

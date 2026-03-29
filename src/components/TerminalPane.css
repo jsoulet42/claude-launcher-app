@@ -73,17 +73,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .terminal-pane-uptime {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   white-space: nowrap;
 }
 
 .terminal-pane-activity {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   white-space: nowrap;
 }
@@ -109,7 +109,7 @@
 .terminal-pane-close {
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 2px 4px;
   font-size: var(--font-size-xs);

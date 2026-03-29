@@ -53,22 +53,21 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
   const retryCountRef = useRef(0);
   const lastColsRef = useRef(0);
   const lastRowsRef = useRef(0);
+  const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const MAX_FIT_RETRIES = 10;
 
-  // Fit xterm immediately, debounce only the IPC resize call
-  const doFit = useCallback(() => {
+  // Core fit logic — call when actually ready to reflow xterm
+  const doFitImmediate = useCallback(() => {
     if (!fitAddonRef.current || !termRef.current) return;
     const container = containerRef.current;
     if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
-      // Container not sized yet — retry with limit
       if (retryCountRef.current >= MAX_FIT_RETRIES) return;
       retryCountRef.current++;
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = setTimeout(() => doFit(), 100);
+      retryTimerRef.current = setTimeout(() => doFitImmediate(), 100);
       return;
     }
 
-    // Reset retry counter on success
     retryCountRef.current = 0;
     if (retryTimerRef.current) {
       clearTimeout(retryTimerRef.current);
@@ -79,13 +78,11 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     const cols = termRef.current.cols;
     const rows = termRef.current.rows;
 
-    // Only send IPC if dimensions actually changed
     if (cols !== lastColsRef.current || rows !== lastRowsRef.current) {
       lastColsRef.current = cols;
       lastRowsRef.current = rows;
       onResize?.(cols, rows);
 
-      // Debounce IPC call to ConPTY (100ms)
       if (ipcTimerRef.current) clearTimeout(ipcTimerRef.current);
       ipcTimerRef.current = setTimeout(() => {
         invoke('resize_terminal', {
@@ -94,6 +91,15 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       }, 100);
     }
   }, [terminalId, onResize]);
+
+  // Debounced fit — used by ResizeObserver during continuous resizes
+  // Waits 50ms of inactivity before fitting, prevents xterm canvas thrashing
+  const doFit = useCallback(() => {
+    if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
+    fitTimerRef.current = setTimeout(() => {
+      doFitImmediate();
+    }, 50);
+  }, [doFitImmediate]);
 
   // Mount: create xterm instance
   useEffect(() => {
@@ -200,6 +206,7 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       observer.disconnect();
       if (ipcTimerRef.current) clearTimeout(ipcTimerRef.current);
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
       dataDisposable.dispose();
       term.dispose();
       termRef.current = null;
