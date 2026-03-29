@@ -131,9 +131,9 @@
 }
 
 .preferences-editor-btn--primary {
-  background: var(--accent, #89b4fa);
-  color: #1e1e2e;
-  border-color: var(--accent, #89b4fa);
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
   font-weight: 500;
 }
 
@@ -163,4 +163,53 @@
   background: rgba(166, 227, 161, 0.1);
   border-radius: 4px;
   margin-bottom: 8px;
+}
+
+/* Custom theme color pickers */
+.preferences-editor-colors {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.preferences-editor-color-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.preferences-editor-color-input {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-primary, #313244);
+  border-radius: 4px;
+  padding: 2px;
+  background: var(--bg-secondary, #181825);
+  cursor: pointer;
+}
+
+.preferences-editor-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.preferences-editor-color-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.preferences-editor-color-label {
+  font-size: 13px;
+  color: var(--text-primary, #cdd6f4);
+  min-width: 120px;
+}
+
+.preferences-editor-color-hex {
+  font-size: 11px;
+  color: var(--text-muted, #6c7086);
+}
+
+.preferences-editor-btn--reset {
+  margin-top: 4px;
+  font-size: 12px;
+  align-self: flex-start;
 }

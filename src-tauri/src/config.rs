@@ -24,10 +24,20 @@ pub struct ConfigData {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Preferences {
     pub theme: Option<String>,
+    pub custom_theme: Option<CustomThemeColors>,
     pub default_preset: Option<String>,
     pub scan_directories: Option<Vec<String>>,
     pub auto_discover_projects: Option<bool>,
     pub daemon: Option<DaemonPrefs>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomThemeColors {
+    pub bg_primary: String,
+    pub bg_secondary: String,
+    pub bg_surface: String,
+    pub text_primary: String,
+    pub accent: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -361,6 +371,7 @@ pub fn apply_defaults(config: &mut ConfigData) {
     // Preferences
     let prefs = config.preferences.get_or_insert_with(|| Preferences {
         theme: None,
+        custom_theme: None,
         default_preset: None,
         scan_directories: None,
         auto_discover_projects: None,

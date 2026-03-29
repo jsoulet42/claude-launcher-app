@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useTerminalsStore } from '../stores/terminals';
+import { useTerminalsStore, collectTerminalIds } from '../stores/terminals';
 import { useRelativeTime } from '../hooks/useRelativeTime';
 import { Terminal } from './Terminal';
 import './TerminalPane.css';
@@ -20,6 +20,10 @@ const STATUS_TITLES: Record<string, string> = {
 export function TerminalPane(props: TerminalPaneProps) {
   const { terminalId, onClose, onSplit } = props;
   const terminal = useTerminalsStore((s) => s.terminals[terminalId]);
+  const projectColor = useTerminalsStore((s) => {
+    const ws = s.workspaces.find(w => collectTerminalIds(w.layout).includes(terminalId));
+    return ws?.color;
+  });
   const isAlerting = useTerminalsStore((s) => s.alertingTerminalIds.includes(terminalId));
   const clearAlert = useTerminalsStore((s) => s.clearAlert);
   const lastActivityTs = useTerminalsStore(
@@ -86,6 +90,12 @@ export function TerminalPane(props: TerminalPaneProps) {
 
   return (
     <div className={`terminal-pane${isAlerting ? ' terminal-pane--alerting' : ''}`}>
+      {projectColor && (
+        <div
+          className="terminal-pane-color-bar"
+          style={{ backgroundColor: projectColor }}
+        />
+      )}
       <div className="terminal-pane-header">
         <span className="terminal-pane-shell">{shell}</span>
         <span

@@ -147,8 +147,17 @@ export interface CommitInfo {
 
 // === Config preferences ===
 
+export interface CustomThemeColors {
+  bg_primary: string;
+  bg_secondary: string;
+  bg_surface: string;
+  text_primary: string;
+  accent: string;
+}
+
 export interface Preferences {
   theme?: string;
+  custom_theme?: CustomThemeColors;
   default_preset?: string;
   scan_directories?: string[];
   auto_discover_projects?: boolean;

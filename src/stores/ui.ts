@@ -46,7 +46,7 @@ export const useUiStore = create<UiState>()(
       },
       setActiveSection: (section) => set({ activeSidebarSection: section }),
       showDetail: () => set({ showProjectDetail: true, showPresetDetail: false, showSettings: false }),
-      hideDetail: () => set({ showProjectDetail: false }),
+      hideDetail: () => set({ showProjectDetail: false, showPresetDetail: false, showSettings: false }),
       setSelectedPreset: (slug) => set({ selectedPreset: slug }),
       showPresetDetailPanel: () => set({ showPresetDetail: true, showProjectDetail: false, showSettings: false }),
       hidePresetDetail: () => set({ showPresetDetail: false }),
