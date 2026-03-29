@@ -184,3 +184,29 @@ export interface ScannedProject {
   git_branch: string;
   icon: string;
 }
+
+// === History IPC types (P26 — history-engine) ===
+// Miroir exact des structs Rust dans src-tauri/src/history.rs
+
+export interface HistoryEntry {
+  timestamp: string;
+  preset: string;
+  projects: string[];
+  branches: Record<string, string>;
+  layout: string;
+}
+
+export interface ScoreBreakdown {
+  frequency: number;
+  recency: number;
+  time_of_day: number;
+  git_context: number;
+}
+
+export interface PresetSuggestion {
+  slug: string;
+  score: number;
+  breakdown: ScoreBreakdown;
+  reason: string;
+  is_suggested: boolean;
+}

@@ -3,6 +3,7 @@ mod config;
 mod conpty;
 mod error;
 mod git;
+mod history;
 mod scanner;
 mod session;
 mod terminal;
@@ -88,6 +89,10 @@ pub fn run() {
             session::save_session,
             session::load_session,
             session::clear_session,
+            history::add_history_entry,
+            history::get_history,
+            history::get_last_launch,
+            history::get_preset_suggestions,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

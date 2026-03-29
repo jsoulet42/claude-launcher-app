@@ -150,6 +150,19 @@ export const useLaunchStore = create<LaunchState>((set) => ({
       // Activate workspace immediately (before command injection)
       setActiveWorkspace(wsId);
 
+      // Track launch in history (fire-and-forget)
+      invoke('add_history_entry', {
+        entry: {
+          timestamp: new Date().toISOString().slice(0, 19),
+          preset: presetSlug,
+          projects: projectSlugs.filter(Boolean),
+          branches: {},
+          layout: preset.layout,
+        },
+      }).catch((e: unknown) => {
+        console.error('Failed to track launch in history:', e);
+      });
+
       // Inject initial commands (non-blocking for UI)
       for (let i = 0; i < terminalIds.length; i++) {
         const cmd = initialCommands[i];
