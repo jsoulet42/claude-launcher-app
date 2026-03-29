@@ -1,0 +1,166 @@
+.preferences-editor {
+  max-width: 500px;
+}
+
+.preferences-editor-title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 12px;
+}
+
+.preferences-editor-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.preferences-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preferences-editor-field > label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary, #a6adc8);
+}
+
+.preferences-editor-field--row {
+  flex-direction: row;
+  align-items: center;
+}
+
+.preferences-editor-select {
+  padding: 6px 10px;
+  background: var(--bg-secondary, #181825);
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  color: var(--text-primary, #cdd6f4);
+  font-size: 13px;
+  font-family: inherit;
+  max-width: 250px;
+}
+
+.preferences-editor-select:focus {
+  outline: none;
+  border-color: var(--accent, #89b4fa);
+}
+
+/* Scan directories */
+.preferences-editor-dirs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preferences-editor-empty {
+  font-size: 12px;
+  color: var(--text-secondary, #a6adc8);
+  margin: 0;
+}
+
+.preferences-editor-dir {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--bg-secondary, #181825);
+  border-radius: 4px;
+}
+
+.preferences-editor-dir-path {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-primary, #cdd6f4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preferences-editor-dir-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary, #a6adc8);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.preferences-editor-dir-remove:hover {
+  color: #f38ba8;
+  background: rgba(243, 139, 168, 0.1);
+}
+
+/* Checkbox */
+.preferences-editor-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary, #cdd6f4);
+  cursor: pointer;
+}
+
+.preferences-editor-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent, #89b4fa);
+}
+
+/* Buttons */
+.preferences-editor-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border, #313244);
+  border-radius: 4px;
+  background: var(--bg-secondary, #181825);
+  color: var(--text-primary, #cdd6f4);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.preferences-editor-btn:hover {
+  background: var(--bg-hover, #313244);
+}
+
+.preferences-editor-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.preferences-editor-btn--primary {
+  background: var(--accent, #89b4fa);
+  color: #1e1e2e;
+  border-color: var(--accent, #89b4fa);
+  font-weight: 500;
+}
+
+.preferences-editor-btn--primary:hover {
+  opacity: 0.9;
+}
+
+.preferences-editor-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.preferences-editor-save-error {
+  font-size: 13px;
+  color: #f38ba8;
+  padding: 8px;
+  background: rgba(243, 139, 168, 0.1);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  margin-bottom: 8px;
+}
+
+.preferences-editor-save-success {
+  font-size: 13px;
+  color: #a6e3a1;
+  padding: 8px;
+  background: rgba(166, 227, 161, 0.1);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}

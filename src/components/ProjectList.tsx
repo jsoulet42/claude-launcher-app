@@ -12,47 +12,30 @@ export function ProjectList({ expanded }: ProjectListProps) {
   const {
     gitInfo,
     stackTypes,
-    scannedProjects,
     selectedProject,
-    scanning,
-    scanMessage,
     setSelectedProject,
-    scanProjects,
   } = useProjectsStore();
   const showDetail = useUiStore((s) => s.showDetail);
+  const showSettingsPanel = useUiStore((s) => s.showSettingsPanel);
 
   const projects = config ? Object.entries(config.projects) : [];
-  const hasProjects = projects.length > 0 || scannedProjects.length > 0;
 
   const handleProjectClick = (slug: string) => {
     setSelectedProject(slug);
     showDetail();
   };
 
-  const handleScan = () => {
-    if (config && !scanning) {
-      scanProjects(config);
-    }
-  };
-
-  if (!hasProjects && !scanning) {
+  if (projects.length === 0) {
     return (
       <div className={`project-list ${expanded ? '' : 'project-list--collapsed'}`}>
         <p className="project-list-empty">Aucun projet</p>
-        {expanded && (
-          <button className="project-scan-btn" onClick={handleScan}>
-            &#x1F50D; Scanner vos dossiers
-          </button>
-        )}
-        {!expanded && (
-          <button
-            className="project-scan-btn"
-            onClick={handleScan}
-            title="Scanner vos dossiers"
-          >
-            &#x1F50D;
-          </button>
-        )}
+        <button
+          className="project-scan-btn"
+          onClick={() => showSettingsPanel('projects')}
+          title={expanded ? undefined : 'Ajouter un projet'}
+        >
+          +{expanded && <span> Ajouter</span>}
+        </button>
       </div>
     );
   }
@@ -102,52 +85,7 @@ export function ProjectList({ expanded }: ProjectListProps) {
             </li>
           );
         })}
-
-        {scannedProjects.length > 0 && (
-          <>
-            {expanded && (
-              <li className="project-list-separator">Découverts</li>
-            )}
-            {scannedProjects.map((sp) => (
-              <li
-                key={sp.slug}
-                className={`project-item ${selectedProject === sp.slug ? 'project-item--selected' : ''}`}
-                onClick={() => handleProjectClick(sp.slug)}
-                title={expanded ? undefined : sp.name}
-              >
-                <span
-                  className="project-item-color"
-                  style={{ backgroundColor: sp.color || '#6c7086' }}
-                />
-                <span className="project-item-label">{sp.name}</span>
-                {expanded && (
-                  <span className="project-item-discovered">Découvert</span>
-                )}
-              </li>
-            ))}
-          </>
-        )}
       </ul>
-
-      <button
-        className="project-scan-btn"
-        onClick={handleScan}
-        disabled={scanning}
-        title={expanded ? undefined : 'Scanner'}
-      >
-        {scanning ? (
-          <span className="project-scan-spinner" />
-        ) : (
-          <>
-            &#x1F50D;
-            {expanded && <span> Scanner</span>}
-          </>
-        )}
-      </button>
-
-      {scanMessage && (
-        <p className="project-scan-message">{scanMessage}</p>
-      )}
     </div>
   );
 }

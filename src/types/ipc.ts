@@ -158,6 +158,19 @@ export interface Preferences {
 export interface DaemonPrefs {
   enabled?: boolean;
   watch_interval_ms?: number;
+  notify_on_wait?: boolean;
+}
+
+// === Validation IPC types (P27 — config-wizard) ===
+// Miroir exact des structs Rust dans src-tauri/src/config.rs
+// Note: ValidationLevel Rust n'a pas de rename_all → PascalCase
+
+export type ValidationLevel = 'Error' | 'Warning';
+
+export interface ValidationMessage {
+  level: ValidationLevel;
+  path: string;
+  message: string;
 }
 
 // === Scanner IPC types (P20 — scanner-rust) ===
@@ -167,11 +180,13 @@ export type StackType =
   | 'dolibarr-module' | 'php' | 'node' | 'go'
   | 'rust' | 'dotnet' | 'python' | 'powershell' | 'unknown';
 
+// Noms snake_case — pas de rename_all sur le struct Rust ScanOptions
 export interface ScanOptions {
   directories: string[];
   max_depth?: number;
   existing_paths: string[];
 }
+
 
 export interface ScannedProject {
   slug: string;

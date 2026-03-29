@@ -10,6 +10,7 @@ import { TabBar } from './components/TabBar';
 import { SplitLayout } from './components/SplitLayout';
 import { ProjectDetail } from './components/ProjectDetail';
 import { PresetDetail } from './components/PresetDetail';
+import { SettingsPanel } from './components/SettingsPanel';
 import { sendNotification, isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import type { TerminalExitEvent, TerminalErrorEvent, TerminalOutputEvent, ClaudeDoneEvent, SavedSession } from './types/ipc';
@@ -77,6 +78,7 @@ function TerminalArea() {
   const selectedProject = useProjectsStore((s) => s.selectedProject);
   const showProjectDetail = useUiStore((s) => s.showProjectDetail);
   const showPresetDetail = useUiStore((s) => s.showPresetDetail);
+  const showSettings = useUiStore((s) => s.showSettings);
   const selectedPreset = useUiStore((s) => s.selectedPreset);
 
   // Request notification permission on mount
@@ -171,7 +173,20 @@ function TerminalArea() {
   );
   useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
 
-  // Priority: PresetDetail > ProjectDetail > Terminals > Welcome
+  // Priority: Settings > PresetDetail > ProjectDetail > Terminals > Welcome
+  // Settings overlay
+  if (showSettings) {
+    if (workspaces.length === 0) {
+      return <SettingsPanel />;
+    }
+    return (
+      <>
+        <TabBar />
+        <SettingsPanel />
+      </>
+    );
+  }
+
   // Preset detail overlay
   if (showPresetDetail && selectedPreset) {
     if (workspaces.length === 0) {

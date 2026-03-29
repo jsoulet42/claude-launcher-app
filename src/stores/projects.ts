@@ -25,6 +25,7 @@ interface ProjectsState {
   fetchAllGitInfo: (projects: Record<string, Project>) => Promise<void>;
   scanProjects: (config: ConfigData) => Promise<void>;
   clearScanMessage: () => void;
+  clearScannedProjects: () => void;
 
   startPolling: (projects: Record<string, Project>) => void;
   stopPolling: () => void;
@@ -97,8 +98,8 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
       const results = await invoke<ScannedProject[]>('scan_projects', {
         options: {
           directories: config.preferences?.scan_directories ?? [],
-          maxDepth: 4,
-          existingPaths,
+          max_depth: 4,
+          existing_paths: existingPaths,
         },
       });
 
@@ -123,11 +124,20 @@ export const useProjectsStore = create<ProjectsState>((set, get) => ({
       }
     } catch (e) {
       console.error('Failed to scan projects:', e);
-      set({ scanning: false, error: String(e) });
+      set({
+        scanning: false,
+        scannedProjects: [],
+        scanMessage: `Erreur de scan : ${String(e)}`,
+        error: String(e),
+      });
+      setTimeout(() => {
+        get().clearScanMessage();
+      }, 5000);
     }
   },
 
   clearScanMessage: () => set({ scanMessage: null }),
+  clearScannedProjects: () => set({ scannedProjects: [], scanMessage: null }),
 
   startPolling: (projects) => {
     if (pollingIntervalId !== null) return;
