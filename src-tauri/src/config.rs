@@ -29,6 +29,8 @@ pub struct Preferences {
     pub scan_directories: Option<Vec<String>>,
     pub auto_discover_projects: Option<bool>,
     pub daemon: Option<DaemonPrefs>,
+    #[serde(default)]
+    pub onboarding_completed: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -376,6 +378,7 @@ pub fn apply_defaults(config: &mut ConfigData) {
         scan_directories: None,
         auto_discover_projects: None,
         daemon: None,
+        onboarding_completed: false,
     });
     if prefs.theme.is_none() {
         prefs.theme = Some("dark".into());
