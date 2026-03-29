@@ -10,7 +10,7 @@
   padding: var(--space-2) var(--space-3);
   border: none;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: var(--font-size-sm);
   cursor: pointer;
@@ -24,10 +24,6 @@
   color: var(--text-primary);
 }
 
-.sidebar-section--active .sidebar-section-header {
-  color: var(--accent);
-}
-
 .sidebar-section-icon {
   font-size: var(--font-size-lg);
   flex-shrink: 0;
@@ -39,11 +35,43 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  flex: 1;
 }
 
+/* Section chevron indicator */
+.sidebar-section-chevron {
+  display: inline-block;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  transition: transform 200ms ease;
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+
+.sidebar-section-chevron--collapsed {
+  transform: rotate(-180deg);
+}
+
+/* Section content with collapse animation (grid row trick for smooth height) */
 .sidebar-section-content {
+  display: grid;
+  grid-template-rows: 1fr;
+  overflow: clip;
+  transition: grid-template-rows 200ms ease, opacity 200ms ease, padding 200ms ease;
+  opacity: 1;
+  padding: var(--space-1) 0;
+}
+
+.sidebar-section-content--collapsed {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  padding: 0;
+}
+
+.sidebar-section-content__inner {
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  padding: var(--space-1) 0;
 }

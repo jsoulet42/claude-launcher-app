@@ -81,14 +81,15 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 6px 8px;
+  padding: 6px 12px;
   background: none;
   border: none;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-primary, #cdd6f4);
   cursor: pointer;
   border-radius: 4px;
   font-size: 13px;
   text-align: left;
+  font-weight: 400;
 }
 
 .settings-sidebar-btn:hover {

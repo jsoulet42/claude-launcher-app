@@ -29,10 +29,11 @@
 
 .project-detail-stack-badge {
   font-size: var(--font-size-xs);
-  color: var(--text-muted);
-  border: 1px solid var(--border-primary);
+  color: var(--accent);
+  border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: 2px 6px;
+  opacity: 0.7;
 }
 
 /* Git section */
@@ -49,7 +50,7 @@
 }
 
 .project-detail-git-icon {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-lg);
 }
 
@@ -78,7 +79,7 @@
 }
 
 .project-detail-no-git {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-style: italic;
 }
@@ -115,14 +116,14 @@
 }
 
 .project-detail-commit-time {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .project-detail-no-commits {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-style: italic;
 }
@@ -136,11 +137,12 @@
   background: var(--bg-surface);
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-sm);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
   user-select: all;
   cursor: text;
+  border: 1px solid var(--border-subtle);
 }
 
 /* Presets section */
@@ -152,9 +154,10 @@
 
 .project-detail-section-title {
   font-size: var(--font-size-sm);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
 .project-detail-presets-grid {
@@ -196,16 +199,16 @@
 
 .project-detail-preset-desc {
   font-size: var(--font-size-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .project-detail-preset-panels {
   font-size: var(--font-size-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .project-detail-no-presets {
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-sm);
   font-style: italic;
 }

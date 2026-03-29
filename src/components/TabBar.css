@@ -88,7 +88,7 @@
   opacity: 0;
   background: none;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
   cursor: pointer;
   padding: 2px;
@@ -114,7 +114,7 @@
   background: none;
   border: none;
   border-left: 1px solid var(--border-primary);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-lg);
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast);

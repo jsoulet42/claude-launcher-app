@@ -6,7 +6,7 @@
   border-top: 1px solid var(--border-primary);
   padding: 0 var(--space-4);
   font-size: var(--font-size-xs);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   gap: var(--space-4);
   flex-shrink: 0;
 }
@@ -32,5 +32,5 @@
 }
 
 .statusbar-dot--inactive {
-  background: var(--text-muted);
+  background: var(--text-secondary);
 }

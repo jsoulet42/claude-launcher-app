@@ -30,6 +30,7 @@ function getLayoutIcon(splits: string[]): string {
 export function PresetList({ expanded }: PresetListProps) {
   const config = useConfigStore((s) => s.config);
   const { selectedPreset, setSelectedPreset, showPresetDetailPanel } = useUiStore();
+  const sidebarWidth = useUiStore((s) => s.sidebarWidth);
 
   const presets = config ? Object.entries(config.presets) : [];
   const layouts = config?.layouts ?? {};
@@ -48,39 +49,52 @@ export function PresetList({ expanded }: PresetListProps) {
     );
   }
 
+  // Use single column when sidebar is narrow
+  const useNarrowGrid = sidebarWidth < 220;
+
   return (
     <div className={`preset-list ${expanded ? '' : 'preset-list--collapsed'}`}>
-      <ul className="preset-list-items">
-        {presets.map(([slug, preset]) => {
-          const isSelected = selectedPreset === slug;
-          const isDefault = defaultPreset === slug;
-          const layout = layouts[preset.layout];
-          const icon = layout ? getLayoutIcon(layout.splits) : '?';
+      {expanded ? (
+        <div className={`preset-grid ${useNarrowGrid ? 'preset-grid--narrow' : ''}`}>
+          {presets.map(([slug, preset]) => {
+            const isSelected = selectedPreset === slug;
+            const isDefault = defaultPreset === slug;
+            const layout = layouts[preset.layout];
+            const icon = layout ? getLayoutIcon(layout.splits) : '?';
 
-          return (
-            <li
-              key={slug}
-              className={`preset-item ${isSelected ? 'preset-item--selected' : ''}`}
-              onClick={() => handlePresetClick(slug)}
-              title={expanded ? undefined : preset.name}
-            >
-              <span className="preset-item-icon">{icon}</span>
-              <div className="preset-item-info">
-                <div className="preset-item-name-row">
-                  <span className="preset-item-name">{preset.name}</span>
-                  {isDefault && <span className="preset-item-default" title="Preset par defaut">&#x2605;</span>}
-                </div>
-                {preset.description && (
-                  <span className="preset-item-desc">{preset.description}</span>
-                )}
-                <span className="preset-item-panels">
-                  {preset.panels.length} panneau{preset.panels.length > 1 ? 'x' : ''}
-                </span>
+            return (
+              <div
+                key={slug}
+                className={`preset-card ${isSelected ? 'preset-card--selected' : ''} ${isDefault ? 'preset-card--default' : ''}`}
+                onClick={() => handlePresetClick(slug)}
+              >
+                <span className="preset-card__icon">{icon}</span>
+                <span className="preset-card__name">{preset.name}</span>
+                {isDefault && <span className="preset-card__star" title="Preset par defaut">&#x2605;</span>}
               </div>
-            </li>
-          );
-        })}
-      </ul>
+            );
+          })}
+        </div>
+      ) : (
+        <ul className="preset-list-items">
+          {presets.map(([slug, preset]) => {
+            const isSelected = selectedPreset === slug;
+            const layout = layouts[preset.layout];
+            const icon = layout ? getLayoutIcon(layout.splits) : '?';
+
+            return (
+              <li
+                key={slug}
+                className={`preset-item ${isSelected ? 'preset-item--selected' : ''}`}
+                onClick={() => handlePresetClick(slug)}
+                title={preset.name}
+              >
+                <span className="preset-item-icon">{icon}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
