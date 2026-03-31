@@ -19,3 +19,9 @@ dist/
 
 # Node.js
 node_modules/
+
+# Sessions runtime (donnees locales)
+sessions/
+
+# Placeholder icon (non utilise)
+app-icon.png
