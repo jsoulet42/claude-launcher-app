@@ -1,12 +1,133 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 import { useTerminalsStore } from './terminals';
-import type { ConfigData, ScannedProject } from '../types/ipc';
+import type { LayoutNode, PaneNode, SplitNode } from './terminals';
+import type { ConfigData, CreateTerminalResult, ScannedProject, TerminalInfo } from '../types/ipc';
 
 const SHELL_READY_DELAY_MS = 500;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseRatio(splitDef: string): number {
+  const match = splitDef.match(/\((\d+)%\)/);
+  return match ? parseInt(match[1], 10) / 100 : 0.5;
+}
+
+/**
+ * Build a layout tree from splits definitions and pane nodes.
+ * Splits DSL:
+ *   H          = horizontal split (side by side)
+ *   V / V(N%)  = vertical split (top/bottom) with optional ratio
+ *   focus-N    = subsequent splits target pane N
+ */
+function buildLayoutTree(splits: string[], panes: PaneNode[]): LayoutNode {
+  if (panes.length === 0) throw new Error('No panes');
+  if (panes.length === 1) return panes[0];
+
+  // Filter real splits (non-focus directives)
+  const realSplits = splits.filter((s) => !s.startsWith('focus'));
+
+  // Simple case: all H splits → chain of horizontal splits
+  if (realSplits.every((s) => s === 'H')) {
+    let tree: LayoutNode = panes[0];
+    for (let i = 1; i < panes.length; i++) {
+      tree = {
+        id: crypto.randomUUID(),
+        type: 'split',
+        direction: 'horizontal',
+        children: [tree, panes[i]],
+        ratio: i / (i + 1), // distribute space evenly
+      } as SplitNode;
+    }
+    return tree;
+  }
+
+  // main-plus-stack: V(N%), H → left pane spanning full height, right side split horizontally
+  if (
+    realSplits.length === 2 &&
+    realSplits[0].startsWith('V') &&
+    realSplits[1] === 'H' &&
+    panes.length === 3
+  ) {
+    const ratio = parseRatio(realSplits[0]);
+    const rightSplit: SplitNode = {
+      id: crypto.randomUUID(),
+      type: 'split',
+      direction: 'vertical',
+      children: [panes[1], panes[2]],
+      ratio: 0.5,
+    };
+    return {
+      id: crypto.randomUUID(),
+      type: 'split',
+      direction: 'horizontal',
+      children: [panes[0], rightSplit],
+      ratio,
+    } as SplitNode;
+  }
+
+  // grid-2x2: H, focus-0, V, focus-1, V → 2 columns, each split vertically
+  if (
+    panes.length === 4 &&
+    splits.length >= 5 &&
+    splits[0] === 'H' &&
+    splits[1] === 'focus-0' &&
+    splits[2] === 'V' &&
+    splits[3] === 'focus-1' &&
+    splits[4] === 'V'
+  ) {
+    const leftSplit: SplitNode = {
+      id: crypto.randomUUID(),
+      type: 'split',
+      direction: 'vertical',
+      children: [panes[0], panes[2]],
+      ratio: 0.5,
+    };
+    const rightSplit: SplitNode = {
+      id: crypto.randomUUID(),
+      type: 'split',
+      direction: 'vertical',
+      children: [panes[1], panes[3]],
+      ratio: 0.5,
+    };
+    return {
+      id: crypto.randomUUID(),
+      type: 'split',
+      direction: 'horizontal',
+      children: [leftSplit, rightSplit],
+      ratio: 0.5,
+    } as SplitNode;
+  }
+
+  // Simple 2-pane V or V(N%)
+  if (realSplits.length === 1 && realSplits[0].startsWith('V') && panes.length === 2) {
+    const ratio = parseRatio(realSplits[0]);
+    return {
+      id: crypto.randomUUID(),
+      type: 'split',
+      direction: 'horizontal',
+      children: [panes[0], panes[1]],
+      ratio,
+    } as SplitNode;
+  }
+
+  // Fallback: chain splits sequentially
+  let tree: LayoutNode = panes[0];
+  for (let i = 1; i < panes.length; i++) {
+    const splitDef = realSplits[i - 1] ?? 'H';
+    const direction = splitDef.startsWith('V') ? 'horizontal' as const : 'vertical' as const;
+    const ratio = parseRatio(splitDef);
+    tree = {
+      id: crypto.randomUUID(),
+      type: 'split',
+      direction,
+      children: [tree, panes[i]],
+      ratio,
+    } as SplitNode;
+  }
+  return tree;
 }
 
 interface LaunchState {
@@ -49,8 +170,6 @@ export const useLaunchStore = create<LaunchState>((set) => ({
     set({ launching: true, error: null });
 
     const {
-      createWorkspace,
-      createTerminalInWorkspace,
       setActiveWorkspace,
     } = useTerminalsStore.getState();
 
@@ -105,47 +224,75 @@ export const useLaunchStore = create<LaunchState>((set) => ({
         ? config.projects[focusProjectSlug]?.color
         : undefined;
 
-      // Create workspace with first panel
-      const firstPanel = resolvedPanels[0];
-      const wsId = await createWorkspace(wsName, wsColor, {
-        shell: firstPanel?.shell,
-        cwd: firstPanel?.cwd,
-      });
-
-      // Track terminal IDs for initial command injection
+      // Create all terminals via IPC
       const terminalIds: string[] = [];
+      const paneNodes: PaneNode[] = [];
+      const terminalInfos: Record<string, TerminalInfo> = {};
+      const now = Date.now();
 
-      // Get first terminal ID from the workspace just created
-      const ws = useTerminalsStore.getState().workspaces.find(
-        (w) => w.id === wsId
-      );
-      if (ws && ws.layout.type === 'terminal') {
-        terminalIds.push(ws.layout.terminalId);
-      }
-
-      // Create remaining panels
-      for (let i = 1; i < resolvedPanels.length; i++) {
+      for (let i = 0; i < resolvedPanels.length; i++) {
         const p = resolvedPanels[i];
-        const splitDef = splits[i - 1] ?? 'H';
-        const direction = splitDef.startsWith('V')
-          ? ('vertical' as const)
-          : ('horizontal' as const);
-
         try {
-          const terminalId = await createTerminalInWorkspace(wsId, {
-            cwd: p.cwd,
-            shell: p.shell,
-            direction,
+          const result = await invoke<CreateTerminalResult>('create_terminal', {
+            params: {
+              shell: p.shell,
+              cwd: p.cwd,
+              cols: 120,
+              rows: 30,
+            },
           });
-          terminalIds.push(terminalId);
+          terminalIds.push(result.id);
+
+          const pane: PaneNode = {
+            id: crypto.randomUUID(),
+            type: 'terminal',
+            terminalId: result.id,
+          };
+          paneNodes.push(pane);
+
+          terminalInfos[result.id] = {
+            id: result.id,
+            shell: p.shell || 'pwsh.exe',
+            cwd: p.cwd || null,
+            cols: 120,
+            rows: 30,
+            status: 'running',
+            created_at: now,
+            exit_code: null,
+          };
         } catch (e) {
-          console.error(
-            `Failed to create terminal for panel ${i}:`,
-            e
-          );
-          // Keep workspace with panels already created
+          console.error(`Failed to create terminal for panel ${i}:`, e);
         }
       }
+
+      // Build the correct layout tree from splits definitions
+      const layoutTree = buildLayoutTree(splits, paneNodes);
+
+      // Create workspace with pre-built layout
+      const wsId = crypto.randomUUID();
+      const workspace = {
+        id: wsId,
+        name: wsName,
+        color: wsColor,
+        layout: layoutTree,
+      };
+
+      const lastActivityMap: Record<string, number> = {};
+      for (const tid of terminalIds) {
+        lastActivityMap[tid] = now;
+      }
+
+      useTerminalsStore.setState((s) => ({
+        workspaces: [...s.workspaces, workspace],
+        activeWorkspaceId: wsId,
+        focusedPaneId: paneNodes[0]?.id ?? null,
+        focusedPanePerWorkspace: {
+          ...s.focusedPanePerWorkspace,
+          [wsId]: paneNodes[0]?.id ?? '',
+        },
+        terminals: { ...s.terminals, ...terminalInfos },
+        lastActivity: { ...s.lastActivity, ...lastActivityMap },
+      }));
 
       // Activate workspace immediately (before command injection)
       setActiveWorkspace(wsId);
