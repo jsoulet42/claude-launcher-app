@@ -5,6 +5,7 @@ import type { ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { useTauriEvent } from '../hooks/useTauriEvent';
 import { terminalRefs } from '../terminalRefs';
 import type { TerminalOutputEvent, TerminalExitEvent, TerminalErrorEvent } from '../types/ipc';
@@ -85,8 +86,9 @@ const TERMINAL_OPTIONS = {
   fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
   fontSize: 14,
   lineHeight: 1.2,
-  cursorBlink: true,
+  cursorBlink: false,
   cursorStyle: 'bar' as const,
+  cursorInactiveStyle: 'none' as const,
   scrollback: 5000,
   theme: XTERM_THEMES.dark,
 };
@@ -179,10 +181,21 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       console.warn('WebGL not available, using canvas renderer');
     }
 
-    // Web links: Ctrl+Click to open URLs
-    term.loadAddon(new WebLinksAddon());
+    // Web links: Ctrl+Click to open URLs in system browser
+    term.loadAddon(new WebLinksAddon((_event, url) => {
+      shellOpen(url).catch(() => {});
+    }));
 
     term.open(el);
+
+    // Block the native paste event on xterm's hidden textarea to prevent
+    // double-paste: our Ctrl+V handler already writes to the PTY, but xterm
+    // also processes the browser paste event on its textarea → duplicate write.
+    const xtermTextarea = el.querySelector('textarea');
+    if (xtermTextarea) {
+      xtermTextarea.addEventListener('paste', (e) => e.preventDefault());
+    }
+
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
