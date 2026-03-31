@@ -1,88 +1,115 @@
 # Claude Launcher
 
-Un launcher TUI interactif pour Windows Terminal qui cree et gere des workspaces multi-terminaux Claude Code.
+Une app desktop Windows pour creer et gerer des workspaces de developpement multi-terminaux avec terminaux embarques, principalement pour Claude Code.
 
-```
-./launcher.ps1 tui
-```
-
-Un TUI riche s'ouvre : selectionnez un projet, choisissez un preset, et lancez votre workspace en une touche.
-
-```
-./launcher.ps1 workspace -Project easysap
-```
-
-Ou lancez directement depuis la CLI — 3 panneaux s'ouvrent, chacun dans le bon projet.
+Inspire de **cmux** (macOS), **Hyper** et **VS Code** — terminaux integres dans l'app, pas dans une fenetre separee.
 
 ## Fonctionnalites
 
-- **TUI interactive** (style lazygit) — navigation clavier, preview ASCII des layouts, selection de presets
+- **Terminaux embarques** — vrais terminaux ConPTY + xterm.js dans l'app, pas de fenetre externe
+- **Workspaces multi-panneaux** — layouts flexibles (horizontal, vertical, grid 2x2, main+sidebar)
+- **Gestion de projets** — sidebar interactive avec infos git (branche, status, couleur)
 - **Presets intelligents** — suggestions basees sur l'historique, l'heure et le contexte git
-- **Decouverte automatique** — scan de dossiers pour trouver vos projets (F2 dans le TUI)
-- **Commandes initiales** — injection de commandes au lancement avec variables template (`{{project}}`, `{{branch}}`)
-- **Layouts flexibles** — horizontal, vertical, grid 2x2, main+sidebar, main+stack
-- **Projets dynamiques** — `{{auto}}` dans les presets pour choisir le projet au lancement
-- **Dry-run** — `./launcher.ps1 preset -WhatIf` pour voir la commande sans lancer
+- **Sessions persistantes** — sauvegarde/restauration automatique des workspaces
+- **Dashboard temps reel** — status des panneaux (process running/exited, uptime)
+- **Scanner automatique** — decouverte de projets via scan recursif des dossiers
+- **Theming** — dark/light/custom, couleurs par projet dans les headers terminaux
+- **Raccourcis clavier** — navigation rapide entre workspaces et panneaux
+- **Config wizard** — configuration des projets et presets depuis l'UI, zero JSON a la main
+- **Onboarding** — premier lancement guide (scan projets, creation preset)
+- **Notifications** — alertes OS quand un agent Claude a termine
 
 ## Stack
 
-- **PowerShell 7** — moteur principal
-- **Terminal.Gui (.NET)** — TUI interactive avec widgets natifs
-- **Windows Terminal** — rendu multi-panneaux via `wt.exe`
-- **100% Windows natif** — zero WSL, zero dependance externe
+- **Tauri v2** — framework app desktop (WebView2 natif Windows 11)
+- **Rust** — backend (config, git, scanner, sessions, ConPTY, historique)
+- **React 18 + TypeScript** — frontend
+- **xterm.js 6** — terminal embarque dans le webview
+- **Vite 6** — bundler frontend
+- **Zustand** — state management
+- **ConPTY** (Windows API) — pseudo-terminals natifs
+- **git2** — integration git en Rust
 
 ## Architecture
 
 ```
 claude-launcher/
-├── launcher.ps1                  # Point d'entree (CLI + TUI)
-├── config.json                   # Configuration utilisateur
-├── config-schema.json            # Schema JSON (validation + intellisense)
-├── logs/                         # Logs de l'application
-└── lib/
-    ├── Config/
-    │   ├── ConfigLoader.ps1      # Chargement + validation config
-    │   └── ConfigSchema.ps1      # Schema + defaults
-    ├── Terminal/
-    │   └── WtBuilder.ps1         # Construction commandes wt.exe
-    ├── TUI/
-    │   ├── App.ps1               # Fenetre principale Terminal.Gui
-    │   ├── ProjectList.ps1       # Widget liste projets (sidebar)
-    │   ├── PresetSelector.ps1    # Widget selection preset (sidebar)
-    │   ├── LaunchFlow.ps1        # Flow de lancement (modales)
-    │   ├── Theme.ps1             # Theming TUI
-    │   ├── Logger.ps1            # Systeme de logs
-    │   └── DepsManager.ps1       # Gestion deps Terminal.Gui
-    ├── Core/
-    │   ├── SmartPresets.ps1       # Suggestions contextuelles
-    │   └── InitialCommands.ps1   # Resolution variables template
-    └── Scanner/
-        └── ProjectScanner.ps1    # Decouverte automatique projets
+├── src-tauri/                   # Backend Rust (Tauri v2)
+│   └── src/
+│       ├── main.rs              # Entry point Tauri
+│       ├── lib.rs               # Module exports + Tauri commands
+│       ├── config.rs            # Config loader + validation (serde)
+│       ├── conpty.rs            # ConPTY manager (create/destroy/resize)
+│       ├── terminal.rs          # Gestion sessions terminaux
+│       ├── git.rs               # Git info (git2 crate)
+│       ├── scanner.rs           # Project scanner (walkdir crate)
+│       ├── session.rs           # Session save/restore
+│       ├── history.rs           # Historique + SmartPresets scoring
+│       ├── commands.rs          # Template resolution (initial commands)
+│       └── error.rs             # Error types
+│
+├── src/                         # Frontend React + TypeScript
+│   ├── components/
+│   │   ├── AppLayout.tsx        # Layout principal
+│   │   ├── Titlebar.tsx         # Barre de titre custom
+│   │   ├── Sidebar.tsx          # Sidebar navigation
+│   │   ├── ProjectList.tsx      # Liste projets + git info
+│   │   ├── ProjectDetail.tsx    # Detail projet
+│   │   ├── ProjectEditor.tsx    # Edition projet
+│   │   ├── PresetList.tsx       # Liste presets
+│   │   ├── PresetDetail.tsx     # Detail preset + preview layout
+│   │   ├── PresetEditor.tsx     # Edition preset
+│   │   ├── Terminal.tsx         # xterm.js wrapper
+│   │   ├── TerminalPane.tsx     # Pane terminal + header status
+│   │   ├── SplitLayout.tsx      # Multi-pane split layout
+│   │   ├── TabBar.tsx           # Onglets workspaces
+│   │   ├── StatusBar.tsx        # Barre de status
+│   │   ├── SettingsPanel.tsx    # Panneau preferences
+│   │   ├── OnboardingWizard.tsx # Wizard premier lancement
+│   │   └── LayoutPreview.tsx    # Preview ASCII des layouts
+│   ├── hooks/
+│   │   ├── useHotkeys.ts        # Raccourcis clavier
+│   │   ├── useRelativeTime.ts   # Temps relatif (uptime)
+│   │   └── useTauriEvent.ts     # Events Tauri
+│   ├── stores/                  # Zustand stores
+│   │   ├── config.ts            # Configuration IPC
+│   │   ├── terminals.ts         # Sessions ConPTY
+│   │   ├── projects.ts          # Projets + git info
+│   │   ├── launch.ts            # Flow de lancement
+│   │   ├── history.ts           # Historique lancements
+│   │   ├── theme.ts             # Theme actif
+│   │   └── ui.ts                # Etat UI (sidebar, modales)
+│   └── types/
+│       └── ipc.ts               # Types IPC Tauri
+│
+├── config.json                  # Configuration utilisateur
+├── config-schema.json           # Schema JSON (validation + intellisense)
+├── sessions/                    # Sessions sauvegardees
+└── logs/                        # Logs applicatifs
 ```
 
 ## Configuration
 
-Le fichier `config.json` definit vos projets, presets et layouts :
+Le fichier `config.json` definit vos projets, presets et preferences :
 
 ```json
 {
   "projects": {
-    "easysap": {
-      "name": "EasySAP",
-      "path": "C:\\dolibarr\\www\\easysap\\htdocs",
+    "mon-projet": {
+      "name": "Mon Projet",
+      "path": "C:\\chemin\\vers\\projet",
       "color": "#e74c3c",
       "default_command": "claude",
       "initial_command": "/specflow"
     }
   },
   "presets": {
-    "workspace": {
-      "name": "Workspace",
-      "layout": "main-plus-stack",
+    "focus": {
+      "name": "Focus Mode",
+      "layout": "vertical-2",
       "panels": [
-        { "project": "{{auto}}", "command": "claude", "initial_command": "/specflow" },
         { "project": "{{auto}}", "command": "claude" },
-        { "project": "{{auto}}", "command": "pwsh", "initial_command": "echo {{project}} sur {{branch}}" }
+        { "project": "{{auto}}", "command": "pwsh" }
       ]
     }
   }
@@ -91,69 +118,39 @@ Le fichier `config.json` definit vos projets, presets et layouts :
 
 ### Variables template
 
-Les commandes initiales supportent des variables resolues au lancement :
-
 | Variable | Description | Exemple |
 |----------|-------------|---------|
-| `{{project}}` | Nom du projet | EasySAP |
-| `{{branch}}` | Branche git courante | feature/smart-presets |
-| `{{path}}` | Chemin du projet | C:\dolibarr\www\easysap |
-| `{{preset}}` | Nom du preset | Workspace |
+| `{{auto}}` | Projet choisi au lancement | — |
+| `{{project}}` | Nom du projet | Mon Projet |
+| `{{branch}}` | Branche git courante | feature/login |
+| `{{path}}` | Chemin du projet | C:\chemin\vers\projet |
+| `{{preset}}` | Nom du preset | Focus Mode |
 
-## Utilisation
+## Developpement
 
-```powershell
-# TUI interactive
-./launcher.ps1 tui
+### Prerequis
 
-# Lancer un preset directement
-./launcher.ps1 workspace -Project easysap
+- Windows 11
+- [Rust](https://rustup.rs/) (stable)
+- [Node.js](https://nodejs.org/) 20+
+- [Tauri CLI](https://v2.tauri.app/start/create-project/) (`npm install -g @tauri-apps/cli`)
 
-# Dry-run (voir la commande sans lancer)
-./launcher.ps1 workspace -Project easysap -WhatIf
+### Lancer en dev
 
-# Creer un config.json par defaut
-./launcher.ps1 -Init
+```bash
+npm install
+npm run tauri dev
 ```
 
-### Raccourcis TUI
+### Build
 
-| Touche | Action |
-|--------|--------|
-| Tab | Basculer entre Projets et Presets |
-| Enter | Lancer le preset selectionne |
-| F2 | Scanner et decouvrir des projets |
-| ? | Aide |
-| Q | Quitter |
+```bash
+npm run tauri build
+```
 
-## Avancement
+## Historique
 
-### Phase 1 — Fondations (v0.1) ✓
-- [x] **P1: config-schema** — Schema JSON + loader + validation
-- [x] **P2: wt-engine** — Moteur de construction des commandes wt.exe
-- [x] **P3: launcher-cli** — Point d'entree CLI
-
-### Phase 2 — TUI Interactive (v0.2) ✓
-- [x] **P4: tui-bootstrap** — Setup Terminal.Gui, fenetre principale, theming
-- [x] **P5: tui-project-list** — Widget liste projets avec infos git
-- [x] **P6: tui-preset-selector** — Widget selection preset avec preview ASCII
-- [x] **P7: tui-launch-flow** — Flow complet : projet -> preset -> preview -> lancer
-
-### Phase 3 — Intelligence (v0.3) - en cours
-- [x] **P8: project-scanner** — Decouverte automatique de projets
-- [x] **P9: smart-presets** — Suggestions intelligentes basees sur l'historique
-- [x] **P10: initial-commands** — Variables template dans les commandes initiales
-- [ ] **P11: git-integration** — Branche, status, detection mono-repo
-
-
-### Phase 4-7 — a venir
-Session persistence, dashboard live, config wizard, raccourcis globaux.
-
-## Prerequis
-
-- Windows 10/11
-- [PowerShell 7+](https://github.com/PowerShell/PowerShell)
-- [Windows Terminal](https://github.com/microsoft/terminal)
+Le projet a ete initie en PowerShell 7 + Terminal.Gui + Windows Terminal (Phases 1-4). Un pivot vers Tauri v2 a ete realise en mars 2026 pour embarquer les terminaux directement dans l'app. Le code legacy PowerShell est conserve dans `lib/` et `launcher.ps1` pour reference.
 
 ## Licence
 
