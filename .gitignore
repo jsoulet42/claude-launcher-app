@@ -3,6 +3,7 @@
 CLAUDE.md
 BRIEF.md
 ROADMAP.md
+ROADMAP-V1.md
 
 # Dependances binaires (DLL Terminal.Gui auto-telechargee)
 deps/
@@ -16,6 +17,10 @@ config.json
 # Tauri / Rust
 target/
 dist/
+src-tauri/gen/schemas/
 
 # Node.js
 node_modules/
+
+# Sessions runtime locales
+sessions/
