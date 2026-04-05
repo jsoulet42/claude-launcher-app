@@ -747,11 +747,28 @@ pub fn write_terminal(
     params: WriteTerminalParams,
     manager: tauri::State<'_, TerminalManager>,
 ) -> Result<(), String> {
-    tracing::debug!(
-        "IPC: write_terminal id={} len={}",
-        params.id,
-        params.data.len()
-    );
+    // Detect bracketed paste (`\x1b[200~` prefix) to trace potential duplicates/disappearances.
+    // Pastes log at INFO (visible in prod), regular writes stay at DEBUG.
+    // Detect bracketed paste to trace potential duplicates/disappearances.
+    // Pastes log at INFO (visible in prod), regular writes stay at DEBUG.
+    let is_paste = params.data.starts_with("\x1b[200~");
+    let write_id = uuid::Uuid::new_v4().simple().to_string();
+    let short_id = &write_id[..8];
+    if is_paste {
+        tracing::info!(
+            "IPC: write_terminal id={} write_id={} PASTE len={}",
+            params.id,
+            short_id,
+            params.data.len()
+        );
+    } else {
+        tracing::debug!(
+            "IPC: write_terminal id={} write_id={} len={}",
+            params.id,
+            short_id,
+            params.data.len()
+        );
+    }
     manager.write(&params.id, &params.data)
 }
 
