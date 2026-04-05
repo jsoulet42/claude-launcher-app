@@ -86,9 +86,9 @@ const TERMINAL_OPTIONS = {
   fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
   fontSize: 14,
   lineHeight: 1.2,
-  cursorBlink: false,
+  cursorBlink: true,
   cursorStyle: 'bar' as const,
-  cursorInactiveStyle: 'none' as const,
+  cursorInactiveStyle: 'outline' as const,
   scrollback: 5000,
   theme: XTERM_THEMES.dark,
 };
