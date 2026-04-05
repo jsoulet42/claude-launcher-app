@@ -81,6 +81,7 @@ pub fn run() {
             terminal::resize_terminal,
             terminal::close_terminal,
             terminal::list_terminals,
+            terminal::set_ansi_cursor_debug_cmd,
             git::get_git_info,
             git::get_git_branch,
             git::format_title,

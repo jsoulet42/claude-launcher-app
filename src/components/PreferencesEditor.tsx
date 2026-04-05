@@ -4,6 +4,8 @@ import { useConfigStore } from '../stores/config';
 import { useProjectsStore } from '../stores/projects';
 import { useThemeStore } from '../stores/theme';
 import type { ThemeName, CustomThemeColors } from '../stores/theme';
+import { useDiagnosticsStore } from '../stores/diagnostics';
+import type { Renderer } from '../stores/diagnostics';
 import type { ConfigData, Preferences } from '../types/ipc';
 import './PreferencesEditor.css';
 
@@ -14,6 +16,13 @@ export function PreferencesEditor() {
 
   const applyTheme = useThemeStore((s) => s.applyTheme);
   const commitTheme = useThemeStore((s) => s.commitTheme);
+
+  // P34 diagnostic — terminal renderer + ANSI cursor debug (not persisted in config.json,
+  // they live in localStorage via the diagnostics store).
+  const renderer = useDiagnosticsStore((s) => s.renderer);
+  const setRenderer = useDiagnosticsStore((s) => s.setRenderer);
+  const ansiDebug = useDiagnosticsStore((s) => s.ansiDebug);
+  const setAnsiDebug = useDiagnosticsStore((s) => s.setAnsiDebug);
 
   const [theme, setTheme] = useState<ThemeName>('dark');
   const [customColors, setCustomColors] = useState<CustomThemeColors>({
@@ -204,6 +213,32 @@ export function PreferencesEditor() {
               onChange={(e) => setNotifyOnWait(e.target.checked)}
             />
             Notifier quand Claude termine
+          </label>
+        </div>
+
+        <div className="preferences-editor-field">
+          <label>Terminal — Diagnostic</label>
+          <select
+            value={renderer}
+            onChange={(e) => setRenderer(e.target.value as Renderer)}
+            className="preferences-editor-select"
+          >
+            <option value="webgl">Renderer WebGL (GPU, rapide)</option>
+            <option value="dom">Renderer DOM (compat, diagnostic)</option>
+          </select>
+          <p className="preferences-editor-hint">
+            Changer le renderer recharge les terminaux actifs (l&apos;historique temporaire est perdu).
+          </p>
+        </div>
+
+        <div className="preferences-editor-field preferences-editor-field--row">
+          <label className="preferences-editor-checkbox-label">
+            <input
+              type="checkbox"
+              checked={ansiDebug}
+              onChange={(e) => setAnsiDebug(e.target.checked)}
+            />
+            Logs ANSI cursor (debug curseur fantome)
           </label>
         </div>
       </div>

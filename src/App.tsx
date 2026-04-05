@@ -5,6 +5,7 @@ import { useTerminalsStore, buildSessionSnapshot } from './stores/terminals';
 import { useProjectsStore } from './stores/projects';
 import { useUiStore } from './stores/ui';
 import { useThemeStore } from './stores/theme';
+import { useDiagnosticsStore } from './stores/diagnostics';
 import type { ThemeName } from './stores/theme';
 import { useTauriEvent } from './hooks/useTauriEvent';
 import { useHotkeys } from './hooks/useHotkeys';
@@ -251,6 +252,15 @@ function App() {
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
+
+  // P34 diagnostic — sync ANSI cursor debug flag from frontend store to Rust backend.
+  // Runs on boot (picks up persisted localStorage value) and on every toggle.
+  const ansiDebug = useDiagnosticsStore((s) => s.ansiDebug);
+  useEffect(() => {
+    invoke('set_ansi_cursor_debug_cmd', { params: { enabled: ansiDebug } }).catch((err) => {
+      console.error('[diagnostics] failed to sync ANSI debug flag:', err);
+    });
+  }, [ansiDebug]);
 
   // Apply theme from config on load
   useEffect(() => {
