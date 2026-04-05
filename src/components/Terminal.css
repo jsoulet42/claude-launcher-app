@@ -36,3 +36,29 @@
 .terminal-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary, #a6adc8);
 }
+
+/* P34 phantom cursor fix.
+ *
+ * Root cause: xterm v6's DOM renderer paints cursor spans (.xterm-cursor,
+ * .xterm-cursor-bar, etc.) at the logical cursor position, which Claude Code
+ * moves everywhere in its UI via CUP sequences. cursorInactiveStyle:'none'
+ * should hide these on non-focused terminals, but xterm's focus/blur timing
+ * races during visibility transitions (Settings → back, tab switch) leave
+ * a trail of visible cursors at whatever CUP positions.
+ *
+ * Fix: hide all xterm cursor spans unconditionally via CSS. We also zero
+ * out the native browser caret on .xterm-helper-textarea (xterm positions
+ * it at the logical cursor, browser paints a visible caret inside it).
+ * Trade-off: the active terminal's cursor is only visible while typing
+ * (Claude Code / pwsh show it via their own echoed glyphs). Accepted as
+ * the price of zero phantom cursors across workspaces. */
+.xterm-helper-textarea {
+  caret-color: transparent !important;
+}
+
+.xterm .xterm-cursor,
+.xterm .xterm-cursor-bar,
+.xterm .xterm-cursor-block,
+.xterm .xterm-cursor-outline {
+  display: none !important;
+}
