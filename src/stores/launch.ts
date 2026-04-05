@@ -274,6 +274,7 @@ export const useLaunchStore = create<LaunchState>((set) => ({
         id: wsId,
         name: wsName,
         color: wsColor,
+        projectSlug: focusProjectSlug ?? undefined,
         layout: layoutTree,
       };
 

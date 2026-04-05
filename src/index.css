@@ -62,6 +62,7 @@ html, html[data-theme="dark"] {
   --accent-green: #a6e3a1;
   --accent-red: #f38ba8;
   --accent-yellow: #f9e2af;
+  --accent-orange: #fab387;
 
   --bg-titlebar: #11111b;
   --bg-sidebar: #181825;
@@ -94,6 +95,7 @@ html[data-theme="light"] {
   --accent-green: #56949f;
   --accent-red: #b4637a;
   --accent-yellow: #ea9d34;
+  --accent-orange: #fe640b;
 
   --bg-titlebar: #e8e0d8;
   --bg-sidebar: #f2e9e1;

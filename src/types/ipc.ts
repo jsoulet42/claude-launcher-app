@@ -113,6 +113,7 @@ export interface SavedSession {
 export interface SavedWorkspace {
   name: string;
   color: string | null;
+  project_slug: string | null;
   layout: SavedLayoutNode;
 }
 

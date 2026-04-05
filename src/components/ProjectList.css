@@ -27,7 +27,7 @@
 }
 
 .project-card:hover {
-  box-shadow: 0 0 8px var(--project-glow, rgba(137, 180, 250, 0.25));
+  box-shadow: 0 0 8px var(--project-glow);
 }
 
 .project-card--selected {
@@ -41,8 +41,8 @@
 .project-card__body {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--space-2) var(--space-2);
+  gap: 8px;
+  padding: 18px 12px;
   min-width: 0;
   flex: 1;
 }
@@ -54,7 +54,7 @@
 }
 
 .project-card__name {
-  font-size: var(--font-size-sm);
+  font-size: 14px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;

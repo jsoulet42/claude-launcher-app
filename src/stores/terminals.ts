@@ -30,6 +30,7 @@ export interface Workspace {
   id: string;
   name: string;
   color?: string;
+  projectSlug?: string;
   layout: LayoutNode;
 }
 
@@ -203,7 +204,7 @@ interface TerminalsState {
 
   setFocusedPaneId: (paneId: string) => void;
 
-  createWorkspace: (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => Promise<string>;
+  createWorkspace: (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number; projectSlug?: string }) => Promise<string>;
   closeWorkspace: (workspaceId: string) => Promise<void>;
   setActiveWorkspace: (workspaceId: string) => void;
   renameWorkspace: (workspaceId: string, name: string) => void;
@@ -268,7 +269,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     });
   },
 
-  createWorkspace: async (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number }) => {
+  createWorkspace: async (name?: string, color?: string, opts?: { shell?: string; cwd?: string; cols?: number; rows?: number; projectSlug?: string }) => {
     const wsId = uuid();
     workspaceCounter++;
     const wsName = name || `Terminal ${workspaceCounter}`;
@@ -303,6 +304,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
       id: wsId,
       name: wsName,
       color,
+      projectSlug: opts?.projectSlug,
       layout: pane,
     };
 
@@ -798,6 +800,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
           id: uuid(),
           name: savedWs.name || `Terminal ${workspaceCounter}`,
           color: savedWs.color ?? undefined,
+          projectSlug: savedWs.project_slug ?? undefined,
           layout,
         });
       } catch (e) {
@@ -879,6 +882,7 @@ export function buildSessionSnapshot(): SavedSession | null {
     workspaces: liveWorkspaces.map((ws) => ({
       name: ws.name,
       color: ws.color ?? null,
+      project_slug: ws.projectSlug ?? null,
       layout: serializeLayout(ws.layout),
     })),
   };
