@@ -34,7 +34,7 @@
 
 .preset-card:hover {
   background: var(--bg-hover);
-  box-shadow: 0 0 6px rgba(137, 180, 250, 0.15);
+  box-shadow: 0 0 6px var(--accent-glow);
 }
 
 .preset-card--selected {

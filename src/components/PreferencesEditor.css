@@ -24,7 +24,7 @@
 .preferences-editor-field > label {
   font-size: 12px;
   font-weight: 500;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary);
 }
 
 .preferences-editor-field--row {
@@ -34,10 +34,10 @@
 
 .preferences-editor-select {
   padding: 6px 10px;
-  background: var(--bg-secondary, #181825);
-  border: 1px solid var(--border, #313244);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary);
   font-size: 13px;
   font-family: inherit;
   max-width: 250px;
@@ -45,7 +45,7 @@
 
 .preferences-editor-select:focus {
   outline: none;
-  border-color: var(--accent, #89b4fa);
+  border-color: var(--accent);
 }
 
 /* Scan directories */
@@ -57,13 +57,13 @@
 
 .preferences-editor-empty {
   font-size: 12px;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary);
   margin: 0;
 }
 
 .preferences-editor-hint {
   font-size: 11px;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary);
   margin: 4px 0 0 0;
   font-style: italic;
 }
@@ -73,14 +73,14 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  background: var(--bg-secondary, #181825);
+  background: var(--bg-secondary);
   border-radius: 4px;
 }
 
 .preferences-editor-dir-path {
   flex: 1;
   font-size: 12px;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -89,7 +89,7 @@
 .preferences-editor-dir-remove {
   background: none;
   border: none;
-  color: var(--text-secondary, #a6adc8);
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 14px;
   padding: 2px 4px;
@@ -97,8 +97,8 @@
 }
 
 .preferences-editor-dir-remove:hover {
-  color: #f38ba8;
-  background: rgba(243, 139, 168, 0.1);
+  color: var(--accent-red);
+  background: var(--accent-red-subtle);
 }
 
 /* Checkbox */
@@ -107,29 +107,29 @@
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary);
   cursor: pointer;
 }
 
 .preferences-editor-checkbox-label input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: var(--accent, #89b4fa);
+  accent-color: var(--accent);
 }
 
 /* Buttons */
 .preferences-editor-btn {
   padding: 6px 14px;
-  border: 1px solid var(--border, #313244);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
-  background: var(--bg-secondary, #181825);
-  color: var(--text-primary, #cdd6f4);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 13px;
 }
 
 .preferences-editor-btn:hover {
-  background: var(--bg-hover, #313244);
+  background: var(--bg-hover);
 }
 
 .preferences-editor-btn:disabled {
@@ -139,7 +139,7 @@
 
 .preferences-editor-btn--primary {
   background: var(--accent);
-  color: #ffffff;
+  color: #ffffff; /* blanc pur: contraste sur accent */
   border-color: var(--accent);
   font-weight: 500;
 }
@@ -155,9 +155,9 @@
 
 .preferences-editor-save-error {
   font-size: 13px;
-  color: #f38ba8;
+  color: var(--accent-red);
   padding: 8px;
-  background: rgba(243, 139, 168, 0.1);
+  background: var(--accent-red-subtle);
   border-radius: 4px;
   white-space: pre-wrap;
   margin-bottom: 8px;
@@ -165,9 +165,9 @@
 
 .preferences-editor-save-success {
   font-size: 13px;
-  color: #a6e3a1;
+  color: var(--accent-green);
   padding: 8px;
-  background: rgba(166, 227, 161, 0.1);
+  background: var(--accent-green-subtle);
   border-radius: 4px;
   margin-bottom: 8px;
 }
@@ -188,10 +188,10 @@
 .preferences-editor-color-input {
   width: 32px;
   height: 32px;
-  border: 1px solid var(--border-primary, #313244);
+  border: 1px solid var(--border-primary);
   border-radius: 4px;
   padding: 2px;
-  background: var(--bg-secondary, #181825);
+  background: var(--bg-secondary);
   cursor: pointer;
 }
 
@@ -206,13 +206,13 @@
 
 .preferences-editor-color-label {
   font-size: 13px;
-  color: var(--text-primary, #cdd6f4);
+  color: var(--text-primary);
   min-width: 120px;
 }
 
 .preferences-editor-color-hex {
   font-size: 11px;
-  color: var(--text-muted, #6c7086);
+  color: var(--text-muted);
 }
 
 .preferences-editor-btn--reset {

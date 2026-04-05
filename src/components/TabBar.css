@@ -133,12 +133,12 @@
 
 @keyframes tab-alert {
   0%, 100% { background: var(--bg-tab-inactive); }
-  50% { background: var(--accent-orange, #e67e22); box-shadow: 0 0 12px rgba(230, 126, 34, 0.5); }
+  50% { background: var(--accent-orange); box-shadow: 0 0 12px var(--accent-orange-glow); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .tabbar-tab--alerting {
     animation: none;
-    background: var(--accent-orange, #e67e22);
+    background: var(--accent-orange);
   }
 }

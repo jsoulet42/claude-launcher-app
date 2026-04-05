@@ -185,22 +185,22 @@
 
 @keyframes pane-alert {
   0%, 100% { box-shadow: none; }
-  50% { box-shadow: inset 0 0 0 2px var(--accent-orange, #e67e22), 0 0 16px rgba(230, 126, 34, 0.3); }
+  50% { box-shadow: inset 0 0 0 2px var(--accent-orange), 0 0 16px var(--accent-orange-halo); }
 }
 
 @keyframes pane-header-alert {
   0%, 100% { background: var(--bg-surface); }
-  50% { background: rgba(230, 126, 34, 0.15); }
+  50% { background: var(--accent-orange-subtle); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .terminal-pane--alerting {
     animation: none;
-    box-shadow: inset 0 0 0 2px var(--accent-orange, #e67e22);
+    box-shadow: inset 0 0 0 2px var(--accent-orange);
   }
 
   .terminal-pane--alerting .terminal-pane-header {
     animation: none;
-    background: rgba(230, 126, 34, 0.15);
+    background: var(--accent-orange-subtle);
   }
 }
