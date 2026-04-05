@@ -1,6 +1,6 @@
 //! Terminal manager — lifecycle, events, and Tauri IPC commands.
 //!
-//! Manages a collection of ConPTY terminals, each with an async reader task
+//! Manages a collection of PTY terminals, each with an async reader task
 //! that streams output to the frontend via Tauri events.
 
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ use std::thread::JoinHandle;
 
 use tauri::{AppHandle, Emitter};
 
-use crate::conpty::{ConPty, ConPtyOptions};
+use crate::pty::{Pty, PtyOptions};
 
 // ─── ANSI cursor diagnostic flag (P34 cursor-phantom-debug) ──────────────────
 //
@@ -132,10 +132,10 @@ struct ClaudeState {
 
 // ─── Internal terminal struct ────────────────────────────────────────────────
 
-/// Internal terminal state — not serialized, holds the ConPty and reader task.
+/// Internal terminal state — not serialized, holds the Pty and reader task.
 struct Terminal {
     info: TerminalInfo,
-    conpty: Arc<ConPty>,
+    pty: Arc<Pty>,
     /// Handle to the reader thread that continuously reads output
     reader_handle: Option<JoinHandle<()>>,
 }
@@ -180,20 +180,20 @@ impl TerminalManager {
             id, resolved_shell, cwd, cols, rows
         );
 
-        let options = ConPtyOptions {
+        let options = PtyOptions {
             shell: resolved_shell.clone(),
             cwd: cwd.clone(),
             cols,
             rows,
         };
 
-        let conpty = ConPty::new(options).map_err(|e| {
-            let msg = format!("Failed to create ConPTY: {}", e);
+        let pty = Pty::new(options).map_err(|e| {
+            let msg = format!("Failed to create PTY: {}", e);
             tracing::error!("{}", msg);
             msg
         })?;
 
-        let conpty = Arc::new(conpty);
+        let pty = Arc::new(pty);
 
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -214,14 +214,14 @@ impl TerminalManager {
         // Spawn the output reader task
         let reader_handle = spawn_reader(
             id.clone(),
-            conpty.clone(),
+            pty.clone(),
             self.app_handle.clone(),
             self.terminals.clone(),
         );
 
         let terminal = Terminal {
             info: info.clone(),
-            conpty,
+            pty,
             reader_handle: Some(reader_handle),
         };
 
@@ -252,7 +252,7 @@ impl TerminalManager {
             msg
         })?;
 
-        terminal.conpty.write(data.as_bytes()).map_err(|e| {
+        terminal.pty.write(data.as_bytes()).map_err(|e| {
             let msg = format!("Failed to write to terminal {}: {}", id, e);
             tracing::error!("{}", msg);
             msg
@@ -281,7 +281,7 @@ impl TerminalManager {
             msg
         })?;
 
-        terminal.conpty.resize(cols, rows).map_err(|e| {
+        terminal.pty.resize(cols, rows).map_err(|e| {
             let msg = format!("Failed to resize terminal {}: {}", id, e);
             tracing::error!("{}", msg);
             msg
@@ -311,13 +311,14 @@ impl TerminalManager {
         // the console is closed (ReadFile returns 0/error).
         let _reader_handle = terminal.reader_handle.take();
 
-        // Get exit code before closing the console
-        let code = terminal.conpty.exit_code().unwrap_or(-1);
+        // Kill the child FIRST via the independent killer. This unblocks the
+        // watcher thread (which was holding the Child Mutex inside wait()),
+        // so subsequent exit_code() / drop can acquire the Child Mutex.
+        terminal.pty.close_console();
 
-        // Close the console BEFORE drop to unblock the reader thread.
-        // Without this, the reader thread holds an Arc<ConPty> and
-        // the ConPty Drop (which calls close_console) never runs.
-        terminal.conpty.close_console();
+        // Now that the watcher has released the Child Mutex, exit_code() can
+        // call try_wait() without deadlocking.
+        let code = terminal.pty.exit_code().unwrap_or(-1);
 
         // Drop terminal explicitly
         drop(terminal);
@@ -373,7 +374,7 @@ fn resolve_shell(shell: Option<String>) -> String {
         _ => "pwsh.exe".to_string(),
     };
 
-    // Shells need specific flags to stay interactive in a ConPTY.
+    // Shells need specific flags to stay interactive in a PTY.
     // Without -NoExit, pwsh opens, runs the profile, and immediately exits.
     // Extract just the filename for comparison (COMSPEC returns full path like C:\WINDOWS\system32\cmd.exe)
     let base = std::path::Path::new(raw.trim())
@@ -587,30 +588,30 @@ fn extract_last_message(buffer: &str) -> Option<String> {
 // ─── Output reader + process watcher threads ───────────────────────────────
 
 /// Spawn two threads for a terminal:
-/// 1. **Reader thread**: continuously reads output from ConPTY and emits events.
+/// 1. **Reader thread**: continuously reads output from the PTY master and emits events.
 /// 2. **Watcher thread**: waits for the child process to exit, then closes the
-///    ConPTY console to unblock the reader's ReadFile call.
+///    PTY (via kill) to unblock the reader's blocking read call.
 ///
-/// This two-thread pattern is needed because ConPTY does NOT close the output
+/// This two-thread pattern is needed because the PTY master does NOT return EOF
 /// pipe when the child process exits — the pipe stays open as long as the
 /// console handle exists. The watcher closes the console, which breaks the
 /// pipe, which makes ReadFile return 0/error, which exits the reader loop.
 fn spawn_reader(
     id: String,
-    conpty: Arc<ConPty>,
+    pty: Arc<Pty>,
     app_handle: AppHandle,
     terminals: Arc<Mutex<HashMap<String, Terminal>>>,
 ) -> JoinHandle<()> {
     // Spawn the process watcher thread
-    let watcher_conpty = conpty.clone();
+    let watcher_pty = pty.clone();
     let watcher_id = id.clone();
     std::thread::Builder::new()
         .name(format!("terminal-watcher-{}", &id[..8]))
         .spawn(move || {
             tracing::debug!("Watcher thread started for terminal {}", watcher_id);
-            watcher_conpty.wait_for_exit();
+            watcher_pty.wait_for_exit();
             tracing::debug!("Process exited for terminal {}, closing console", watcher_id);
-            watcher_conpty.close_console();
+            watcher_pty.close_console();
         })
         .expect("Failed to spawn terminal watcher thread");
 
@@ -628,10 +629,10 @@ fn spawn_reader(
             };
 
             loop {
-                match conpty.read(&mut buf) {
+                match pty.read(&mut buf) {
                     Ok(0) => {
                         // Pipe closed — process exited (or console was closed by watcher)
-                        let code = conpty.exit_code().unwrap_or(-1);
+                        let code = pty.exit_code().unwrap_or(-1);
                         tracing::info!("Terminal {} exited with code {}", id, code);
                         let _ = app_handle.emit(
                             "terminal:exit",

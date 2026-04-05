@@ -4,8 +4,8 @@ use serde::Serialize;
 pub enum AppError {
     #[error("Configuration: {0}")]
     Config(String),
-    #[error("Terminal ConPTY: {0}")]
-    ConPty(String),
+    #[error("Terminal PTY: {0}")]
+    Pty(String),
     #[error("Git: {0}")]
     Git(String),
     #[error("IO: {0}")]

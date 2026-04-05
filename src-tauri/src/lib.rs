@@ -1,9 +1,9 @@
 mod commands;
 mod config;
-mod conpty;
 mod error;
 mod git;
 mod history;
+mod pty;
 mod scanner;
 mod session;
 mod terminal;
