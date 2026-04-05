@@ -4,6 +4,7 @@
 //! that streams output to the frontend via Tauri events.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -13,6 +14,25 @@ use std::thread::JoinHandle;
 use tauri::{AppHandle, Emitter};
 
 use crate::conpty::{ConPty, ConPtyOptions};
+
+// ─── ANSI cursor diagnostic flag (P34 cursor-phantom-debug) ──────────────────
+//
+// When enabled, the reader thread scans each output chunk for cursor-related
+// ANSI escape sequences (CUP, DECTCEM, DECSCUSR, save/restore, bracketed paste)
+// and logs them via tracing with target="ansi_cursor". Scope is intentionally
+// limited to cursor sequences — other ANSI sequences (SGR colors, scroll region,
+// clear screen) are NOT logged to keep signal/noise ratio usable.
+//
+// Default off (zero cost in the hot path: a single relaxed AtomicBool load).
+static ANSI_CURSOR_DEBUG: AtomicBool = AtomicBool::new(false);
+
+fn ansi_cursor_debug_enabled() -> bool {
+    ANSI_CURSOR_DEBUG.load(Ordering::Relaxed)
+}
+
+pub fn set_ansi_cursor_debug(enabled: bool) {
+    ANSI_CURSOR_DEBUG.store(enabled, Ordering::Relaxed);
+}
 
 // ─── Public types (serialized over IPC) ──────────────────────────────────────
 
@@ -645,6 +665,9 @@ fn spawn_reader(
                         }
 
                         if valid_len > 0 {
+                            // P34 diagnostic — scan ANSI cursor sequences on raw bytes (no-op if flag off)
+                            scan_ansi_cursor_sequences(&id, &data_bytes[..valid_len]);
+
                             let data = String::from_utf8_lossy(&data_bytes[..valid_len]).to_string();
 
                             // Parse OSC titles for Claude detection BEFORE emitting output
@@ -684,6 +707,128 @@ fn spawn_reader(
             }
         })
         .expect("Failed to spawn terminal reader thread")
+}
+
+// ─── ANSI cursor sequence scanner (P34 diagnostic) ──────────────────────────
+//
+// Scans a byte slice for cursor-related ANSI escape sequences and logs each
+// match via tracing (target="ansi_cursor"). Bytes-level scanner (no regex dep),
+// multi-byte safe (operates on raw bytes, never slices UTF-8 strings).
+//
+// Sequences detected (scope intentionally limited — cursor-only):
+//   CSI n;m H  → CUP (cursor position absolute)
+//   CSI n;m f  → HVP (alias of CUP)
+//   CSI n A/B/C/D  → CUU/CUD/CUF/CUB (relative move)
+//   CSI s      → save cursor
+//   CSI u      → restore cursor
+//   ESC 7      → DECSC (save cursor)
+//   ESC 8      → DECRC (restore cursor)
+//   CSI n SP q → DECSCUSR (cursor style)
+//   CSI ?25 h/l → DECTCEM (show/hide cursor)
+//   CSI ?2004 h/l → bracketed paste mode on/off
+//
+// Hot path: early return if flag disabled. When enabled, single-pass scan.
+fn scan_ansi_cursor_sequences(term_id: &str, bytes: &[u8]) {
+    if !ansi_cursor_debug_enabled() {
+        return;
+    }
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let mut i = 0;
+    while i < bytes.len() {
+        // Find next ESC (0x1B)
+        if bytes[i] != 0x1B {
+            i += 1;
+            continue;
+        }
+        // ESC alone or ESC 7 / ESC 8 (2-byte sequences DECSC/DECRC)
+        if i + 1 >= bytes.len() {
+            break;
+        }
+        let next = bytes[i + 1];
+        if next == b'7' {
+            log_cursor_seq(term_id, ts, "DECSC", &bytes[i..i + 2]);
+            i += 2;
+            continue;
+        }
+        if next == b'8' {
+            log_cursor_seq(term_id, ts, "DECRC", &bytes[i..i + 2]);
+            i += 2;
+            continue;
+        }
+        // Only CSI (ESC [) interests us from here
+        if next != b'[' {
+            i += 1;
+            continue;
+        }
+        // Scan CSI params until final byte (0x40..=0x7E, range from ECMA-48)
+        let mut j = i + 2;
+        while j < bytes.len() {
+            let b = bytes[j];
+            if (0x40..=0x7E).contains(&b) {
+                break;
+            }
+            j += 1;
+        }
+        if j >= bytes.len() {
+            // Incomplete CSI at buffer end — stop scanning, will resume next chunk
+            break;
+        }
+        let final_byte = bytes[j];
+        let params = &bytes[i + 2..j];
+        let full = &bytes[i..=j];
+        match final_byte {
+            b'H' => log_cursor_seq(term_id, ts, "CUP", full),
+            b'f' => log_cursor_seq(term_id, ts, "HVP", full),
+            b'A' => log_cursor_seq(term_id, ts, "CUU", full),
+            b'B' => log_cursor_seq(term_id, ts, "CUD", full),
+            b'C' => log_cursor_seq(term_id, ts, "CUF", full),
+            b'D' => log_cursor_seq(term_id, ts, "CUB", full),
+            b's' => log_cursor_seq(term_id, ts, "SCP", full),
+            b'u' => log_cursor_seq(term_id, ts, "RCP", full),
+            b'q' => {
+                // DECSCUSR is "CSI n SP q" — check that the byte before final is 0x20 (space)
+                if params.last() == Some(&0x20) {
+                    log_cursor_seq(term_id, ts, "DECSCUSR", full);
+                }
+            }
+            b'h' | b'l' => {
+                // DECTCEM: "?25h"/"?25l"; bracketed paste: "?2004h"/"?2004l"
+                if params.starts_with(b"?25") && params.len() == 3 {
+                    log_cursor_seq(term_id, ts, "DECTCEM", full);
+                } else if params.starts_with(b"?2004") && params.len() == 5 {
+                    log_cursor_seq(term_id, ts, "BRACKETED_PASTE", full);
+                }
+            }
+            _ => {}
+        }
+        i = j + 1;
+    }
+}
+
+fn log_cursor_seq(term_id: &str, ts: u64, seq_type: &str, raw: &[u8]) {
+    // Escape raw bytes for log readability: ESC → \e, other non-printable → \xNN
+    let mut escaped = String::with_capacity(raw.len() * 2);
+    for &b in raw {
+        match b {
+            0x1B => escaped.push_str("\\e"),
+            0x20..=0x7E => escaped.push(b as char),
+            _ => escaped.push_str(&format!("\\x{:02x}", b)),
+        }
+    }
+    // Use INFO level so the default EnvFilter ("info") picks it up without needing
+    // a custom target directive. The scanner only runs when ANSI_CURSOR_DEBUG is on,
+    // so INFO noise is bounded by the user toggle.
+    tracing::info!(
+        target: "ansi_cursor",
+        "ts={} term_id={} seq={} raw={}",
+        ts,
+        term_id,
+        seq_type,
+        escaped
+    );
 }
 
 // ─── UTF-8 boundary helper ──────────────────────────────────────────────────
@@ -801,4 +946,17 @@ pub fn list_terminals(
 ) -> Result<Vec<TerminalInfo>, String> {
     tracing::debug!("IPC: list_terminals");
     Ok(manager.list())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetAnsiCursorDebugParams {
+    pub enabled: bool,
+}
+
+/// P34 diagnostic — toggle ANSI cursor sequence logging.
+#[tauri::command]
+pub fn set_ansi_cursor_debug_cmd(params: SetAnsiCursorDebugParams) -> Result<(), String> {
+    tracing::info!("IPC: set_ansi_cursor_debug enabled={}", params.enabled);
+    set_ansi_cursor_debug(params.enabled);
+    Ok(())
 }

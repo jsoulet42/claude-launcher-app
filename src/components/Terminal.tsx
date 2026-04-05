@@ -8,6 +8,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
 import { useTauriEvent } from '../hooks/useTauriEvent';
 import { terminalRefs } from '../terminalRefs';
+import { useDiagnosticsStore } from '../stores/diagnostics';
 import type { TerminalOutputEvent, TerminalExitEvent, TerminalErrorEvent } from '../types/ipc';
 import './Terminal.css';
 
@@ -88,12 +89,19 @@ const TERMINAL_OPTIONS = {
   lineHeight: 1.2,
   cursorBlink: true,
   cursorStyle: 'bar' as const,
-  cursorInactiveStyle: 'outline' as const,
+  // P34 — `outline` made inactive terminals paint a visible cursor that
+  // followed every CUP emitted by Claude Code's UI (spinners, border redraws),
+  // producing phantom cursors jumping around the UI zone. `none` hides the
+  // cursor entirely when the terminal loses focus, which kills the phantom.
+  cursorInactiveStyle: 'none' as const,
   scrollback: 5000,
   theme: XTERM_THEMES.dark,
 };
 
 export function Terminal({ terminalId, onResize }: TerminalProps) {
+  // P34 diagnostic — selected renderer (webgl default, dom as fallback for cursor phantom diagnosis).
+  // Changing renderer remounts the xterm instance (renderer is in the mount useEffect deps).
+  const renderer = useDiagnosticsStore((s) => s.renderer);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -159,26 +167,33 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
 
-    // WebGL addon with context loss recovery
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        console.warn('WebGL context lost, attempting recovery...');
-        webglAddon.dispose();
-        try {
-          const newWebgl = new WebglAddon();
-          newWebgl.onContextLoss(() => {
-            console.warn('WebGL context lost again, falling back to canvas permanently');
-            newWebgl.dispose();
-          });
-          term.loadAddon(newWebgl);
-        } catch {
-          console.warn('WebGL reload failed, using canvas renderer');
-        }
-      });
-      term.loadAddon(webglAddon);
-    } catch {
-      console.warn('WebGL not available, using canvas renderer');
+    // WebGL addon with context loss recovery.
+    // P34 diagnostic — if the user selects the 'dom' renderer in preferences, we skip
+    // loading WebglAddon entirely, leaving xterm.js v6 on its default DOM renderer.
+    // This is the fallback path to diagnose WebGL-specific phantom cursor issues.
+    if (renderer === 'webgl') {
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => {
+          console.warn('WebGL context lost, attempting recovery...');
+          webglAddon.dispose();
+          try {
+            const newWebgl = new WebglAddon();
+            newWebgl.onContextLoss(() => {
+              console.warn('WebGL context lost again, falling back to canvas permanently');
+              newWebgl.dispose();
+            });
+            term.loadAddon(newWebgl);
+          } catch {
+            console.warn('WebGL reload failed, using canvas renderer');
+          }
+        });
+        term.loadAddon(webglAddon);
+      } catch {
+        console.warn('WebGL not available, using canvas renderer');
+      }
+    } else {
+      console.info('[diagnostics] Terminal using DOM renderer (WebGL disabled)');
     }
 
     // Web links: Ctrl+Click to open URLs in system browser
@@ -293,7 +308,10 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       termRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [terminalId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // P34 — `renderer` is in deps: toggling webgl/dom remounts the xterm instance
+    // (destroy + recreate). Scrollback buffer is reset on remount — acceptable since
+    // renderer toggling is a rare manual diagnostic action, not a runtime operation.
+  }, [terminalId, renderer]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Event: terminal output
   const handleOutput = useCallback(
