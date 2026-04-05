@@ -81,6 +81,15 @@ html, html[data-theme="dark"] {
   --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+
+  --overlay-modal: rgba(0, 0, 0, 0.5);
+  --accent-red-subtle: rgba(243, 139, 168, 0.1);
+  --accent-green-subtle: rgba(166, 227, 161, 0.1);
+  --accent-orange-subtle: rgba(250, 179, 135, 0.15);
+  --accent-orange-halo: rgba(250, 179, 135, 0.3);
+  --accent-orange-glow: rgba(250, 179, 135, 0.5);
+  --accent-glow: rgba(137, 180, 250, 0.15);
+  --bg-hover-translucent: rgba(69, 71, 90, 0.6);
 }
 
 /* === Light theme (Warm Latte — Catppuccin Latte rechauffe) === */
@@ -114,6 +123,15 @@ html[data-theme="light"] {
   --shadow-md: 0 4px 8px rgba(87, 82, 121, 0.08);
   --shadow-lg: 0 8px 16px rgba(87, 82, 121, 0.1);
   --shadow-card: 0 1px 3px rgba(87, 82, 121, 0.05);
+
+  --overlay-modal: rgba(87, 82, 121, 0.3);
+  --accent-red-subtle: rgba(180, 99, 122, 0.1);
+  --accent-green-subtle: rgba(86, 148, 159, 0.1);
+  --accent-orange-subtle: rgba(254, 100, 11, 0.15);
+  --accent-orange-halo: rgba(254, 100, 11, 0.3);
+  --accent-orange-glow: rgba(254, 100, 11, 0.5);
+  --accent-glow: rgba(40, 105, 131, 0.15);
+  --bg-hover-translucent: rgba(212, 206, 198, 0.6);
 }
 
 * {

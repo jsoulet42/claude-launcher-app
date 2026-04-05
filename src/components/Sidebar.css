@@ -38,7 +38,7 @@
   height: 20px;
   border: none;
   border-radius: 50%;
-  background: rgba(69, 71, 90, 0.6);
+  background: var(--bg-hover-translucent);
   color: var(--text-secondary);
   font-size: var(--font-size-base);
   cursor: pointer;
