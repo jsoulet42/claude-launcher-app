@@ -18,6 +18,8 @@ pub struct SavedSession {
 pub struct SavedWorkspace {
     pub name: String,
     pub color: Option<String>,
+    #[serde(default)]
+    pub project_slug: Option<String>,
     pub layout: SavedLayoutNode,
 }
 
