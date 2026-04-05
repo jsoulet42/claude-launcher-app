@@ -188,14 +188,6 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
 
     term.open(el);
 
-    // Block the native paste event on xterm's hidden textarea to prevent
-    // double-paste: our Ctrl+V handler already writes to the PTY, but xterm
-    // also processes the browser paste event on its textarea → duplicate write.
-    const xtermTextarea = el.querySelector('textarea');
-    if (xtermTextarea) {
-      xtermTextarea.addEventListener('paste', (e) => e.preventDefault());
-    }
-
     termRef.current = term;
     fitAddonRef.current = fitAddon;
 
@@ -215,8 +207,30 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       onResize?.(cols, rows);
     }, 300);
 
-    // Input: user keystrokes → ConPTY
+    // Input: user keystrokes + xterm-handled Ctrl+V (clipboard text) → ConPTY.
+    // When the inner app enables bracketed paste mode (\x1b[?2004h, e.g. pwsh),
+    // xterm traps Ctrl+V itself and fires onData with the clipboard text.
+    // When the inner app does NOT enable bracketed paste (e.g. Claude Code),
+    // xterm forwards the raw Ctrl+V byte (\x16 SYN) — we intercept here and
+    // substitute the clipboard content.
     const dataDisposable = term.onData((data) => {
+      if (data === '\x16') {
+        const pasteId = crypto.randomUUID().slice(0, 8);
+        navigator.clipboard.readText().then((text) => {
+          if (!text) return;
+          console.log(`[paste ${pasteId}] len=${text.length}`);
+          // Wrap in bracketed paste so multi-line text isn't executed line-by-line
+          // by the shell. Apps that support bracketed paste (pwsh, Claude Code)
+          // will treat it as a single paste block.
+          const bracketedText = '\x1b[200~' + text + '\x1b[201~';
+          invoke('write_terminal', {
+            params: { id: terminalId, data: bracketedText },
+          }).catch((err) => {
+            console.error(`[paste ${pasteId}] write failed:`, err);
+          });
+        });
+        return;
+      }
       invoke('write_terminal', {
         params: { id: terminalId, data },
       }).catch(() => {});
@@ -250,18 +264,10 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
         return true;
       }
 
-      if (e.ctrlKey && e.key === 'v') {
-        navigator.clipboard.readText().then((text) => {
-          if (text) {
-            // Bracketed paste: shell receives text as a block, not line by line
-            const bracketedText = '\x1b[200~' + text + '\x1b[201~';
-            invoke('write_terminal', {
-              params: { id: terminalId, data: bracketedText },
-            }).catch(() => {});
-          }
-        });
-        return false;
-      }
+      // Ctrl+V is handled natively by xterm.js: its internal Ctrl+V handler
+      // reads the clipboard and fires onData with the text, which is written
+      // to ConPTY by our onData listener. Intercepting Ctrl+V here caused
+      // double-paste (xterm's internal handler runs in parallel to ours).
 
       return true;
     });
