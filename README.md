@@ -19,6 +19,16 @@ Inspire de **cmux** (macOS), **Hyper** et **VS Code** — terminaux integres dan
 - **Onboarding** — premier lancement guide (scan projets, creation preset)
 - **Notifications** — alertes OS quand un agent Claude a termine
 
+## Installation
+
+Telecharger la derniere version depuis [GitHub Releases](https://github.com/jsoulet42/claude-launcher-app/releases/latest) :
+
+1. Telecharger le fichier `Claude Launcher_*_x64-setup.exe`
+2. Double-clic pour installer (per-user, pas besoin de droits admin)
+3. Si Windows SmartScreen s'affiche (installeur non signe) : "Informations complementaires" → "Executer quand meme"
+
+L'app s'installe dans `%LOCALAPPDATA%\Programs\Claude Launcher\` et cree des raccourcis bureau + menu demarrer. Desinstallation propre via Parametres Windows.
+
 ## Stack
 
 - **Tauri v2** — framework app desktop (WebView2 natif Windows 11)
@@ -147,6 +157,10 @@ npm run tauri dev
 ```bash
 npm run tauri build
 ```
+
+Artefacts generes :
+- Executable : `src-tauri/target/release/claude-launcher.exe`
+- Installeur NSIS : `src-tauri/target/release/bundle/nsis/Claude Launcher_<version>_x64-setup.exe`
 
 ## Historique
 
