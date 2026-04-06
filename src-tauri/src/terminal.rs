@@ -430,11 +430,16 @@ fn resolve_shell(shell: Option<String>) -> String {
     } else if base == "cmd" || base == "cmd.exe" {
         raw
     }
-    // Unix shells: bash/zsh/fish are interactive by default in a PTY.
-    else if base == "bash" || base == "zsh" || base == "fish" || base == "sh" {
-        raw
+    // Unix shells: launch as login shell (-l) so profile/rc files are sourced.
+    // When launched from a desktop shortcut, the environment is minimal (no PATH,
+    // no LANG, etc.). Login mode ensures /etc/profile + ~/.zprofile/~/.bash_profile
+    // are loaded, giving a full interactive environment.
+    else if base == "bash" || base == "zsh" || base == "sh" {
+        format!("{} -l", raw.trim())
+    } else if base == "fish" {
+        format!("{} -l", raw.trim())
     }
-    // Unknown command: wrap in the default shell.
+    // Unknown command: wrap in the default shell as login + command.
     else {
         let ds = default_shell();
         let ds_base = std::path::Path::new(ds.trim())
@@ -447,8 +452,8 @@ fn resolve_shell(shell: Option<String>) -> String {
         } else if ds_base == "cmd" || ds_base == "cmd.exe" {
             format!("{} /c {}", ds, raw.trim())
         } else {
-            // Unix: launch command via default shell -c
-            format!("{} -c {}", ds, raw.trim())
+            // Unix: login shell + command so PATH is set up before running
+            format!("{} -lc {}", ds, raw.trim())
         }
     }
 }
