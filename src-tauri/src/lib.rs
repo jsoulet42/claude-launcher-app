@@ -76,6 +76,7 @@ pub fn run() {
             save_config,
             validate_config,
             get_app_version,
+            terminal::get_default_shell,
             terminal::create_terminal,
             terminal::write_terminal,
             terminal::resize_terminal,

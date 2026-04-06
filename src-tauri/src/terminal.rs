@@ -367,30 +367,63 @@ impl TerminalManager {
 
 // ─── Shell resolution ────────────────────────────────────────────────────────
 
-/// Resolve the shell to use: explicit param > COMSPEC env var > pwsh.exe fallback.
+/// Default shell for the current OS.
+fn default_shell() -> String {
+    #[cfg(windows)]
+    {
+        std::env::var("COMSPEC").unwrap_or_else(|_| "pwsh.exe".to_string())
+    }
+    #[cfg(unix)]
+    {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    }
+}
+
+/// Tauri IPC command: return the default shell for the current OS.
+#[tauri::command]
+pub fn get_default_shell() -> String {
+    default_shell()
+}
+
+/// Resolve the shell to use: explicit param > OS default.
+/// Adds flags to keep the shell interactive when needed.
 fn resolve_shell(shell: Option<String>) -> String {
     let raw = match shell {
         Some(s) if !s.is_empty() => s,
-        _ => "pwsh.exe".to_string(),
+        _ => default_shell(),
     };
 
-    // Shells need specific flags to stay interactive in a PTY.
-    // Without -NoExit, pwsh opens, runs the profile, and immediately exits.
-    // Extract just the filename for comparison (COMSPEC returns full path like C:\WINDOWS\system32\cmd.exe)
+    // Extract just the filename for comparison (COMSPEC/SHELL can return full paths)
     let base = std::path::Path::new(raw.trim())
         .file_name()
         .and_then(|f| f.to_str())
         .unwrap_or(raw.trim())
         .to_lowercase();
+
+    // Windows shells: pwsh/powershell need -NoExit to stay interactive.
     if base == "pwsh" || base == "pwsh.exe" || base == "powershell" || base == "powershell.exe" {
         format!("{} -NoExit", raw.trim())
     } else if base == "cmd" || base == "cmd.exe" {
         raw
-    } else {
-        // For interactive commands (claude, etc.), launch inside pwsh -NoExit
-        // so the terminal stays alive and provides a proper interactive session.
-        // The command runs first, then pwsh stays open for further interaction.
-        format!("pwsh.exe -NoExit -Command {}", raw.trim())
+    }
+    // Unix shells: bash/zsh/fish are interactive by default in a PTY.
+    else if base == "bash" || base == "zsh" || base == "fish" || base == "sh" {
+        raw
+    }
+    // Unknown command: wrap in the default shell.
+    else {
+        let ds = default_shell();
+        let ds_base = std::path::Path::new(ds.trim())
+            .file_name()
+            .and_then(|f| f.to_str())
+            .unwrap_or(ds.trim())
+            .to_lowercase();
+        if ds_base == "pwsh" || ds_base == "pwsh.exe" || ds_base == "powershell" || ds_base == "powershell.exe" {
+            format!("{} -NoExit -Command {}", ds, raw.trim())
+        } else {
+            // Unix: launch command via default shell -c
+            format!("{} -c {}", ds, raw.trim())
+        }
     }
 }
 
