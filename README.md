@@ -1,12 +1,12 @@
 # Claude Launcher
 
-Une app desktop Windows pour creer et gerer des workspaces de developpement multi-terminaux avec terminaux embarques, principalement pour Claude Code.
+Une app desktop multi-plateforme (Windows, Linux, macOS) pour creer et gerer des workspaces de developpement multi-terminaux avec terminaux embarques, principalement pour Claude Code.
 
-Inspire de **cmux** (macOS), **Hyper** et **VS Code** — terminaux integres dans l'app, pas dans une fenetre separee.
+Inspire de **cmux**, **Hyper** et **VS Code** — terminaux integres dans l'app, pas dans une fenetre separee.
 
 ## Fonctionnalites
 
-- **Terminaux embarques** — vrais terminaux ConPTY + xterm.js dans l'app, pas de fenetre externe
+- **Terminaux embarques** — vrais terminaux natifs (portable-pty + xterm.js) dans l'app, pas de fenetre externe
 - **Workspaces multi-panneaux** — layouts flexibles (horizontal, vertical, grid 2x2, main+sidebar)
 - **Gestion de projets** — sidebar interactive avec infos git (branche, status, couleur)
 - **Presets intelligents** — suggestions basees sur l'historique, l'heure et le contexte git
@@ -23,21 +23,36 @@ Inspire de **cmux** (macOS), **Hyper** et **VS Code** — terminaux integres dan
 
 Telecharger la derniere version depuis [GitHub Releases](https://github.com/jsoulet42/claude-launcher-app/releases/latest) :
 
-1. Telecharger le fichier `Claude Launcher_*_x64-setup.exe`
-2. Double-clic pour installer (per-user, pas besoin de droits admin)
-3. Si Windows SmartScreen s'affiche (installeur non signe) : "Informations complementaires" → "Executer quand meme"
+### Windows
+
+- Telecharger `Claude Launcher_*_x64-setup.exe`
+- Double-clic pour installer (per-user, pas besoin de droits admin)
+- Si Windows SmartScreen s'affiche : "Informations complementaires" > "Executer quand meme"
 
 L'app s'installe dans `%LOCALAPPDATA%\Programs\Claude Launcher\` et cree des raccourcis bureau + menu demarrer. Desinstallation propre via Parametres Windows.
 
+### Linux
+
+- **Debian/Ubuntu** : telecharger `claude-launcher_*_amd64.deb`, installer via `sudo dpkg -i <fichier>.deb`
+- **AppImage (universel)** : telecharger `claude-launcher_*_amd64.AppImage`, `chmod +x` puis executer
+
+Dependances runtime : `libwebkit2gtk-4.1-0`, `libgtk-3-0`
+
+### macOS
+
+- Telecharger `Claude Launcher_*_aarch64.dmg` (Apple Silicon) ou `*_x64.dmg` (Intel)
+- Ouvrir le .dmg, glisser dans Applications
+- Premier lancement : clic-droit > Ouvrir (Gatekeeper, app non signee)
+
 ## Stack
 
-- **Tauri v2** — framework app desktop (WebView2 natif Windows 11)
-- **Rust** — backend (config, git, scanner, sessions, ConPTY, historique)
+- **Tauri v2** — framework app desktop cross-platform (WebView2 Windows, WebKitGTK Linux, WebKit macOS)
+- **Rust** — backend (config, git, scanner, sessions, PTY, historique)
 - **React 18 + TypeScript** — frontend
 - **xterm.js 6** — terminal embarque dans le webview
 - **Vite 6** — bundler frontend
 - **Zustand** — state management
-- **ConPTY** (Windows API) — pseudo-terminals natifs
+- **portable-pty** — pseudo-terminals cross-platform (ConPTY Windows, PTY Unix)
 - **git2** — integration git en Rust
 
 ## Architecture
@@ -49,7 +64,7 @@ claude-launcher/
 │       ├── main.rs              # Entry point Tauri
 │       ├── lib.rs               # Module exports + Tauri commands
 │       ├── config.rs            # Config loader + validation (serde)
-│       ├── conpty.rs            # ConPTY manager (create/destroy/resize)
+│       ├── pty.rs               # PTY manager cross-platform (portable-pty)
 │       ├── terminal.rs          # Gestion sessions terminaux
 │       ├── git.rs               # Git info (git2 crate)
 │       ├── scanner.rs           # Project scanner (walkdir crate)
@@ -83,7 +98,7 @@ claude-launcher/
 │   │   └── useTauriEvent.ts     # Events Tauri
 │   ├── stores/                  # Zustand stores
 │   │   ├── config.ts            # Configuration IPC
-│   │   ├── terminals.ts         # Sessions ConPTY
+│   │   ├── terminals.ts         # Sessions terminaux
 │   │   ├── projects.ts          # Projets + git info
 │   │   ├── launch.ts            # Flow de lancement
 │   │   ├── history.ts           # Historique lancements
@@ -140,7 +155,9 @@ Le fichier `config.json` definit vos projets, presets et preferences :
 
 ### Prerequis
 
-- Windows 11
+- **Windows** : Windows 10/11, WebView2 (inclus Win11)
+- **Linux** : libwebkit2gtk-4.1-dev, libgtk-3-dev, libayatana-appindicator3-dev, librsvg2-dev, patchelf
+- **macOS** : Xcode Command Line Tools
 - [Rust](https://rustup.rs/) (stable)
 - [Node.js](https://nodejs.org/) 20+
 - [Tauri CLI](https://v2.tauri.app/start/create-project/) (`npm install -g @tauri-apps/cli`)
@@ -158,9 +175,10 @@ npm run tauri dev
 npm run tauri build
 ```
 
-Artefacts generes :
-- Executable : `src-tauri/target/release/claude-launcher.exe`
-- Installeur NSIS : `src-tauri/target/release/bundle/nsis/Claude Launcher_<version>_x64-setup.exe`
+Artefacts generes (selon OS) :
+- **Windows** : `src-tauri/target/release/bundle/nsis/Claude Launcher_<version>_x64-setup.exe`
+- **Linux** : `.deb`, `.AppImage` dans `src-tauri/target/release/bundle/`
+- **macOS** : `.dmg`, `.app` dans `src-tauri/target/release/bundle/`
 
 ## Historique
 

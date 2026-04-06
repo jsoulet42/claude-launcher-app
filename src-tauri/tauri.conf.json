@@ -35,7 +35,7 @@
     ],
     "category": "DeveloperTool",
     "shortDescription": "TUI launcher for Claude Code workspaces",
-    "longDescription": "Claude Launcher is a Tauri v2 app that manages multi-terminal workspaces for Claude Code with embedded terminals (ConPTY + xterm.js).",
+    "longDescription": "Claude Launcher is a cross-platform Tauri v2 app that manages multi-terminal workspaces for Claude Code with embedded terminals (portable-pty + xterm.js). Available on Windows, Linux and macOS.",
     "linux": {
       "deb": {
         "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
