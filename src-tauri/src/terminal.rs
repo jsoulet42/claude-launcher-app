@@ -368,15 +368,39 @@ impl TerminalManager {
 // ─── Shell resolution ────────────────────────────────────────────────────────
 
 /// Default shell for the current OS.
+/// Windows: pwsh.exe (preferred) > COMSPEC (cmd.exe fallback).
+/// Unix: $SHELL > /bin/bash fallback.
 fn default_shell() -> String {
     #[cfg(windows)]
     {
-        std::env::var("COMSPEC").unwrap_or_else(|_| "pwsh.exe".to_string())
+        // Prefer pwsh over cmd.exe — pwsh is the modern interactive shell on Windows.
+        // COMSPEC typically points to cmd.exe which lacks features for interactive use.
+        if which_exists("pwsh.exe") {
+            "pwsh.exe".to_string()
+        } else if which_exists("pwsh") {
+            "pwsh".to_string()
+        } else {
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+        }
     }
     #[cfg(unix)]
     {
         std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
     }
+}
+
+/// Check if a program exists on PATH.
+fn which_exists(program: &str) -> bool {
+    if let Ok(path) = std::env::var("PATH") {
+        let sep = if cfg!(windows) { ';' } else { ':' };
+        for dir in path.split(sep) {
+            let candidate = std::path::Path::new(dir).join(program);
+            if candidate.exists() {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Tauri IPC command: return the default shell for the current OS.
@@ -420,6 +444,8 @@ fn resolve_shell(shell: Option<String>) -> String {
             .to_lowercase();
         if ds_base == "pwsh" || ds_base == "pwsh.exe" || ds_base == "powershell" || ds_base == "powershell.exe" {
             format!("{} -NoExit -Command {}", ds, raw.trim())
+        } else if ds_base == "cmd" || ds_base == "cmd.exe" {
+            format!("{} /c {}", ds, raw.trim())
         } else {
             // Unix: launch command via default shell -c
             format!("{} -c {}", ds, raw.trim())
