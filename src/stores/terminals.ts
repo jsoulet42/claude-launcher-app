@@ -245,6 +245,15 @@ interface TerminalsState {
   restoreSession: (session: SavedSession) => Promise<void>;
 }
 
+// Cache for the OS default shell (resolved once from backend)
+let _defaultShell: string | null = null;
+async function getDefaultShell(): Promise<string> {
+  if (!_defaultShell) {
+    _defaultShell = await invoke<string>('get_default_shell');
+  }
+  return _defaultShell;
+}
+
 export const useTerminalsStore = create<TerminalsState>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
@@ -273,6 +282,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     const wsId = uuid();
     workspaceCounter++;
     const wsName = name || `Terminal ${workspaceCounter}`;
+    const ds = await getDefaultShell();
 
     const result = await invoke<CreateTerminalResult>('create_terminal', {
       params: { shell: opts?.shell, cwd: opts?.cwd, cols: opts?.cols ?? 80, rows: opts?.rows ?? 24 },
@@ -291,7 +301,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
 
     const info: TerminalInfo = {
       id: result.id,
-      shell: opts?.shell || 'pwsh.exe',
+      shell: opts?.shell || ds,
       cwd: opts?.cwd || null,
       cols,
       rows,
@@ -406,6 +416,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     const ws = state.workspaces.find((w) => w.id === workspaceId);
     if (!ws) return '';
 
+    const ds = await getDefaultShell();
     const cols = opts?.cols ?? 120;
     const rows = opts?.rows ?? 30;
 
@@ -422,7 +433,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
 
     const info: TerminalInfo = {
       id: result.id,
-      shell: opts?.shell || 'pwsh.exe',
+      shell: opts?.shell || ds,
       cwd: opts?.cwd || null,
       cols,
       rows,
@@ -490,6 +501,8 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     const ws = state.workspaces.find((w) => w.id === workspaceId);
     if (!ws) return;
 
+    const ds = await getDefaultShell();
+
     const result = await invoke<CreateTerminalResult>('create_terminal', {
       params: { cols: 80, rows: 24 },
     });
@@ -504,7 +517,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
 
     const info: TerminalInfo = {
       id: result.id,
-      shell: 'pwsh.exe',
+      shell: ds,
       cwd: null,
       cols: 80,
       rows: 24,
@@ -729,6 +742,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     const restoredWorkspaces: Workspace[] = [];
     const restoredTerminals: Record<string, TerminalInfo> = {};
     const restoredActivity: Record<string, number> = {};
+    const ds = await getDefaultShell();
 
     async function rebuildLayout(
       saved: SavedLayoutNode
@@ -749,7 +763,7 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
           const now = Date.now();
           restoredTerminals[result.id] = {
             id: result.id,
-            shell: saved.shell ?? 'pwsh',
+            shell: saved.shell ?? ds,
             cwd: saved.cwd ?? null,
             cols: 120,
             rows: 30,
@@ -860,7 +874,7 @@ export function buildSessionSnapshot(): SavedSession | null {
       const info = terminals[node.terminalId];
       return {
         type: 'terminal',
-        shell: info?.shell ?? 'pwsh',
+        shell: info?.shell ?? _defaultShell ?? 'shell',
         cwd: info?.cwd ?? null,
       };
     }
