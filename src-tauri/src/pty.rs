@@ -78,6 +78,13 @@ impl Pty {
             cmd.cwd(cwd);
         }
 
+        // Ensure TERM is set for xterm.js compatibility. When the app is launched
+        // from a desktop shortcut (not a terminal), TERM may not be inherited.
+        if cmd.get_env("TERM").is_none() {
+            cmd.env("TERM", "xterm-256color");
+            tracing::debug!("TERM not set, defaulting to xterm-256color");
+        }
+
         let child = pair.slave.spawn_command(cmd).map_err(|e| {
             let msg = format!("spawn_command: {}", e);
             tracing::error!("{}", msg);
