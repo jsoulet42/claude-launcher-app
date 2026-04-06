@@ -185,12 +185,26 @@ fn is_valid_hex_color(s: &str) -> bool {
     bytes[1..].iter().all(|b| b.is_ascii_hexdigit())
 }
 
-fn is_windows_absolute_path(s: &str) -> bool {
+fn is_absolute_path(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+    // Check both Windows (C:\ or C:/) and Unix (/...) formats on ANY platform.
+    // This is intentional: a config written on Windows should be readable by Unix
+    // and vice-versa (even if the path won't exist — existence check is separate).
+    is_windows_style_absolute(s) || is_unix_style_absolute(s)
+}
+
+fn is_windows_style_absolute(s: &str) -> bool {
     let bytes = s.as_bytes();
     bytes.len() >= 3
-        && bytes[0].is_ascii_uppercase()
+        && bytes[0].is_ascii_alphabetic()
         && bytes[1] == b':'
         && (bytes[2] == b'\\' || bytes[2] == b'/')
+}
+
+fn is_unix_style_absolute(s: &str) -> bool {
+    s.starts_with('/')
 }
 
 // ---------------------------------------------------------------------------
@@ -237,12 +251,12 @@ pub fn validate_config(config: &ConfigData) -> Vec<ValidationMessage> {
     for (slug, project) in &config.projects {
         let prefix = format!("projects.{}", slug);
 
-        if !is_windows_absolute_path(&project.path) {
+        if !is_absolute_path(&project.path) {
             msgs.push(ValidationMessage {
                 level: ValidationLevel::Error,
                 path: format!("{}.path", prefix),
                 message: format!(
-                    "Le chemin '{}' n'est pas un chemin Windows absolu. Format attendu : C:\\...",
+                    "Le chemin '{}' n'est pas un chemin absolu. Format attendu : 'C:\\...' (Windows) ou '/...' (Unix)",
                     project.path
                 ),
             });

@@ -399,9 +399,17 @@ fn scan_single_directory(
 }
 
 fn normalize_path(path: &str) -> String {
-    path.trim_end_matches(['\\', '/'])
-        .to_lowercase()
-        .replace('/', "\\")
+    let trimmed = path.trim_end_matches(['\\', '/']);
+    #[cfg(windows)]
+    {
+        // Windows: case-insensitive FS, backslash natif
+        trimmed.to_lowercase().replace('/', "\\")
+    }
+    #[cfg(not(windows))]
+    {
+        // Unix: case-sensitive FS, forward slash natif
+        trimmed.replace('\\', "/")
+    }
 }
 
 fn dedup_slugs(projects: &mut Vec<ScannedProject>) {
