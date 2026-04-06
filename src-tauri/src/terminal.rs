@@ -430,16 +430,18 @@ fn resolve_shell(shell: Option<String>) -> String {
     } else if base == "cmd" || base == "cmd.exe" {
         raw
     }
-    // Unix shells: launch as login shell (-l) so profile/rc files are sourced.
-    // When launched from a desktop shortcut, the environment is minimal (no PATH,
-    // no LANG, etc.). Login mode ensures /etc/profile + ~/.zprofile/~/.bash_profile
-    // are loaded, giving a full interactive environment.
+    // Unix shells: launch as login + interactive shell (-li) so ALL config files
+    // are sourced. Login mode loads /etc/profile + ~/.zprofile/~/.bash_profile,
+    // and interactive mode loads ~/.zshrc/~/.bashrc. Both are needed because:
+    // - Desktop launch has minimal env (login fixes PATH from profiles)
+    // - Many users add PATH entries in .zshrc/.bashrc only (interactive fixes that)
     else if base == "bash" || base == "zsh" || base == "sh" {
-        format!("{} -l", raw.trim())
+        format!("{} -li", raw.trim())
     } else if base == "fish" {
+        // fish uses -l for login, always interactive in a PTY
         format!("{} -l", raw.trim())
     }
-    // Unknown command: wrap in the default shell as login + command.
+    // Unknown command: wrap in the default shell as login+interactive + command.
     else {
         let ds = default_shell();
         let ds_base = std::path::Path::new(ds.trim())
@@ -452,8 +454,8 @@ fn resolve_shell(shell: Option<String>) -> String {
         } else if ds_base == "cmd" || ds_base == "cmd.exe" {
             format!("{} /c {}", ds, raw.trim())
         } else {
-            // Unix: login shell + command so PATH is set up before running
-            format!("{} -lc {}", ds, raw.trim())
+            // Unix: login+interactive shell + command so full env is loaded
+            format!("{} -lic {}", ds, raw.trim())
         }
     }
 }
