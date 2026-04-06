@@ -25,7 +25,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": "all",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -36,6 +36,11 @@
     "category": "DeveloperTool",
     "shortDescription": "TUI launcher for Claude Code workspaces",
     "longDescription": "Claude Launcher is a Tauri v2 app that manages multi-terminal workspaces for Claude Code with embedded terminals (ConPTY + xterm.js).",
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libgtk-3-0"]
+      }
+    },
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
