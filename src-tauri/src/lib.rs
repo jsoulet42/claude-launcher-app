@@ -83,6 +83,7 @@ pub fn run() {
             terminal::close_terminal,
             terminal::list_terminals,
             terminal::get_terminal_buffer,
+            terminal::debug_log,
             terminal::set_ansi_cursor_debug_cmd,
             git::get_git_info,
             git::get_git_branch,

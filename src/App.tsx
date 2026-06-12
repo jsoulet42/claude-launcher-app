@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useConfigStore } from './stores/config';
 import { useTerminalsStore, buildSessionSnapshot } from './stores/terminals';
@@ -178,50 +179,31 @@ function TerminalArea() {
   );
   useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
 
-  // Priority: Settings > PresetDetail > ProjectDetail > Terminals > Welcome
-  // Settings overlay
+  // Overlay panel: Settings > PresetDetail > ProjectDetail.
+  // IMPORTANT : les overlays se dessinent PAR-DESSUS la zone terminaux, qui
+  // reste montée en permanence. L'ancien code retournait l'overlay SEUL, ce
+  // qui démontait tous les terminaux de tous les tabs à chaque ouverture de
+  // fiche projet/settings — au retour, le remount rejouait le buffer brut
+  // (repaints ConPTY empilés = écrans dupliqués) et rechargeait le WebGL.
+  let overlay: ReactNode = null;
   if (showSettings) {
-    if (workspaces.length === 0) {
-      return <SettingsPanel />;
-    }
-    return (
-      <>
-        <TabBar />
-        <SettingsPanel />
-      </>
-    );
+    overlay = <SettingsPanel />;
+  } else if (showPresetDetail && selectedPreset) {
+    overlay = <PresetDetail key={selectedPreset} presetSlug={selectedPreset} />;
+  } else if (showProjectDetail && selectedProject) {
+    overlay = <ProjectDetail key={selectedProject} projectSlug={selectedProject} />;
   }
 
-  // Preset detail overlay
-  if (showPresetDetail && selectedPreset) {
-    if (workspaces.length === 0) {
+  // No workspaces: render the panel (or welcome) directly, nothing to keep alive
+  if (workspaces.length === 0) {
+    if (showSettings) return <SettingsPanel />;
+    if (showPresetDetail && selectedPreset) {
       return <PresetDetail key={selectedPreset} presetSlug={selectedPreset} />;
     }
-    return (
-      <>
-        <TabBar />
-        <PresetDetail key={selectedPreset} presetSlug={selectedPreset} />
-      </>
-    );
-  }
-
-  // Show project detail when no workspaces and a project is selected
-  if (workspaces.length === 0 && selectedProject) {
-    return <ProjectDetail key={selectedProject} projectSlug={selectedProject} />;
-  }
-
-  if (workspaces.length === 0) {
+    if (selectedProject) {
+      return <ProjectDetail key={selectedProject} projectSlug={selectedProject} />;
+    }
     return <WelcomeScreen />;
-  }
-
-  // Show project detail overlay when user clicks a project while workspaces exist
-  if (showProjectDetail && selectedProject) {
-    return (
-      <>
-        <TabBar />
-        <ProjectDetail key={selectedProject} projectSlug={selectedProject} />
-      </>
-    );
   }
 
   return (
@@ -236,6 +218,7 @@ function TerminalArea() {
             <SplitLayout node={ws.layout} workspaceId={ws.id} visible={ws.id === activeWorkspaceId} />
           </div>
         ))}
+        {overlay && <div className="overlay-panel">{overlay}</div>}
       </div>
     </>
   );

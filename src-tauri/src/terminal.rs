@@ -195,6 +195,13 @@ struct Terminal {
     reader_handle: Option<JoinHandle<()>>,
     /// Retained output for replay when the frontend (re)mounts the xterm view.
     output: Arc<Mutex<OutputBuffer>>,
+    /// Command (e.g. "claude") to type into the shell once the PTY reaches
+    /// its real size. PTYs are created at a placeholder size (120x30) and
+    /// resized ~300ms later when the frontend has measured the pane. A TUI
+    /// app spawned directly at creation draws at the WRONG size and gets
+    /// corrupted by the ConPTY reflow — so the app command is deferred to
+    /// the first resize (with a timer fallback).
+    pending_command: Arc<Mutex<Option<String>>>,
 }
 
 // ─── TerminalManager ─────────────────────────────────────────────────────────
@@ -230,7 +237,7 @@ impl TerminalManager {
         }
 
         let id = uuid::Uuid::new_v4().to_string();
-        let resolved_shell = resolve_shell(shell);
+        let (resolved_shell, deferred_command) = resolve_shell(shell);
 
         tracing::info!(
             "Creating terminal id={} shell={} cwd={:?} cols={} rows={}",
@@ -269,6 +276,30 @@ impl TerminalManager {
         };
 
         let output = Arc::new(Mutex::new(OutputBuffer::new()));
+        let pending_command = Arc::new(Mutex::new(deferred_command));
+
+        // Fallback: if no resize arrives within 3s (frontend never measured),
+        // inject the pending command anyway so the app eventually starts.
+        if pending_command.lock().map(|p| p.is_some()).unwrap_or(false) {
+            let pty_fb = pty.clone();
+            let pending_fb = pending_command.clone();
+            let id_fb = id.clone();
+            std::thread::Builder::new()
+                .name(format!("terminal-pending-{}", &id[..8]))
+                .spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(3000));
+                    if let Ok(mut p) = pending_fb.lock() {
+                        if let Some(cmd) = p.take() {
+                            tracing::warn!(
+                                "Terminal {}: no resize within 3s, injecting deferred command via fallback",
+                                id_fb
+                            );
+                            let _ = pty_fb.write(format!("{}\r", cmd).as_bytes());
+                        }
+                    }
+                })
+                .ok();
+        }
 
         // Spawn the output reader task
         let reader_handle = spawn_reader(
@@ -284,6 +315,7 @@ impl TerminalManager {
             pty,
             reader_handle: Some(reader_handle),
             output,
+            pending_command,
         };
 
         {
@@ -336,7 +368,7 @@ impl TerminalManager {
 
         // Snapshot what we need, then release the map lock — the nudge path
         // sleeps and must not block other terminal operations.
-        let (pty, same_size) = {
+        let (pty, same_size, pending) = {
             let mut map = self.terminals.lock().map_err(|e| {
                 let msg = format!("Failed to lock terminals map: {}", e);
                 tracing::error!("{}", msg);
@@ -352,7 +384,7 @@ impl TerminalManager {
             let same = terminal.info.cols == cols && terminal.info.rows == rows;
             terminal.info.cols = cols;
             terminal.info.rows = rows;
-            (terminal.pty.clone(), same)
+            (terminal.pty.clone(), same, terminal.pending_command.clone())
         };
 
         if force && same_size && rows > 1 {
@@ -372,6 +404,28 @@ impl TerminalManager {
             tracing::error!("{}", msg);
             msg
         })?;
+
+        // First real resize = the pane has its final geometry. THIS is the
+        // moment to start the deferred app command (claude, ...) — it will
+        // draw directly at the right size, no startup reflow corruption.
+        if let Ok(mut p) = pending.lock() {
+            if let Some(cmd) = p.take() {
+                tracing::info!(
+                    "Terminal {} reached real size {}x{}, injecting deferred command",
+                    id, cols, rows
+                );
+                let pty_cmd = pty.clone();
+                std::thread::Builder::new()
+                    .name("terminal-deferred-cmd".to_string())
+                    .spawn(move || {
+                        // Let the shell process the WINCH/repaint first so the
+                        // typed command lands on a settled prompt.
+                        std::thread::sleep(std::time::Duration::from_millis(150));
+                        let _ = pty_cmd.write(format!("{}\r", cmd).as_bytes());
+                    })
+                    .ok();
+            }
+        }
 
         Ok(())
     }
@@ -518,7 +572,14 @@ pub fn get_default_shell() -> String {
 
 /// Resolve the shell to use: explicit param > OS default.
 /// Adds flags to keep the shell interactive when needed.
-fn resolve_shell(shell: Option<String>) -> String {
+///
+/// Returns `(shell_cmdline, pending_command)`. For a known shell the command
+/// is None. For anything else (an app like "claude"), the INTERACTIVE default
+/// shell is spawned and the app command is returned separately — it is typed
+/// into the shell only after the PTY reaches its real size (see
+/// `Terminal::pending_command`), so the app never draws at the placeholder
+/// 120x30 and never gets corrupted by the initial ConPTY reflow.
+fn resolve_shell(shell: Option<String>) -> (String, Option<String>) {
     let raw = match shell {
         Some(s) if !s.is_empty() => s,
         _ => default_shell(),
@@ -533,9 +594,9 @@ fn resolve_shell(shell: Option<String>) -> String {
 
     // Windows shells: pwsh/powershell need -NoExit to stay interactive.
     if base == "pwsh" || base == "pwsh.exe" || base == "powershell" || base == "powershell.exe" {
-        format!("{} -NoExit", raw.trim())
+        (format!("{} -NoExit", raw.trim()), None)
     } else if base == "cmd" || base == "cmd.exe" {
-        raw
+        (raw, None)
     }
     // Unix shells: launch as login + interactive shell (-li) so ALL config files
     // are sourced. Login mode loads /etc/profile + ~/.zprofile/~/.bash_profile,
@@ -543,12 +604,12 @@ fn resolve_shell(shell: Option<String>) -> String {
     // - Desktop launch has minimal env (login fixes PATH from profiles)
     // - Many users add PATH entries in .zshrc/.bashrc only (interactive fixes that)
     else if base == "bash" || base == "zsh" || base == "sh" {
-        format!("{} -li", raw.trim())
+        (format!("{} -li", raw.trim()), None)
     } else if base == "fish" {
         // fish uses -l for login, always interactive in a PTY
-        format!("{} -l", raw.trim())
+        (format!("{} -l", raw.trim()), None)
     }
-    // Unknown command: wrap in the default shell as login+interactive + command.
+    // App command (claude, npm, ...): interactive default shell + deferred command.
     else {
         let ds = default_shell();
         let ds_base = std::path::Path::new(ds.trim())
@@ -556,14 +617,14 @@ fn resolve_shell(shell: Option<String>) -> String {
             .and_then(|f| f.to_str())
             .unwrap_or(ds.trim())
             .to_lowercase();
-        if ds_base == "pwsh" || ds_base == "pwsh.exe" || ds_base == "powershell" || ds_base == "powershell.exe" {
-            format!("{} -NoExit -Command {}", ds, raw.trim())
+        let interactive = if ds_base == "pwsh" || ds_base == "pwsh.exe" || ds_base == "powershell" || ds_base == "powershell.exe" {
+            format!("{} -NoExit", ds)
         } else if ds_base == "cmd" || ds_base == "cmd.exe" {
-            format!("{} /c {}", ds, raw.trim())
+            ds
         } else {
-            // Unix: login+interactive shell + command so full env is loaded
-            format!("{} -lic {}", ds, raw.trim())
-        }
+            format!("{} -li", ds)
+        };
+        (interactive, Some(raw.trim().to_string()))
     }
 }
 
@@ -1123,6 +1184,20 @@ pub fn close_terminal(
 ) -> Result<(), String> {
     tracing::info!("IPC: close_terminal id={}", params.id);
     manager.close(&params.id)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DebugLogParams {
+    pub msg: String,
+}
+
+/// TEMP (diagnostic affichage) — relaie un message du frontend vers tracing.
+/// Le frontend n'a pas de console visible en l'absence de devtools; cette
+/// commande permet aux sondes JS d'écrire dans les logs backend.
+#[tauri::command]
+pub fn debug_log(params: DebugLogParams) -> Result<(), String> {
+    tracing::info!(target: "frontend", "{}", params.msg);
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]

@@ -91,6 +91,10 @@ function getXtermTheme(): ITheme {
 const IS_WINDOWS = navigator.userAgent.includes('Windows');
 
 const TERMINAL_OPTIONS: ITerminalOptions = {
+  // Requis par UnicodeGraphemesAddon (term.unicode est une API "proposed"
+  // dans xterm v6) — sans ce flag, loadAddon JETTE au montage et fait
+  // tomber tout l'arbre React (écran vide).
+  allowProposedApi: true,
   fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
   fontSize: 14,
   lineHeight: 1.2,
@@ -113,6 +117,16 @@ const TERMINAL_OPTIONS: ITerminalOptions = {
 export function Terminal({ terminalId, visible, focused, onResize }: TerminalProps) {
   const renderer = useDiagnosticsStore((s) => s.renderer);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Miroir de la prop visible pour les callbacks/timers du mount effect.
+  // CRUCIAL : les renderers WebGL et DOM ne mesurent pas la même taille de
+  // cellule (ex. 8.00px vs 8.21px). Un fit exécuté pendant que le terminal
+  // est caché (WebGL libéré → renderer DOM) calcule une AUTRE grille, resize
+  // le PTY, et fait reflower l'app interne (Claude Code) à chaque changement
+  // de tab. Règle : on ne fitte JAMAIS un terminal caché — sa grille reste
+  // celle du dernier état visible; le refit a lieu au retour visible, après
+  // rechargement du WebGL.
+  const visibleRef = useRef(visible);
+  visibleRef.current = visible;
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const webglRef = useRef<WebglAddon | null>(null);
@@ -124,8 +138,10 @@ export function Terminal({ terminalId, visible, focused, onResize }: TerminalPro
   const fitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const MAX_FIT_RETRIES = 10;
 
-  // Core fit logic — call when actually ready to reflow xterm
+  // Core fit logic — call when actually ready to reflow xterm.
+  // No-op while hidden (see visibleRef comment).
   const doFitImmediate = useCallback(() => {
+    if (!visibleRef.current) return;
     if (!fitAddonRef.current || !termRef.current) return;
     const container = containerRef.current;
     if (!container || container.offsetWidth === 0 || container.offsetHeight === 0) {
@@ -207,6 +223,9 @@ export function Terminal({ terminalId, visible, focused, onResize }: TerminalPro
     // was swallowed.
     const initialFitTimers = [300, 900, 2100].map((delay) =>
       setTimeout(() => {
+        // Monté caché (restore de session) : pas de fit — la grille sera
+        // établie au premier passage visible avec les métriques WebGL.
+        if (!visibleRef.current) return;
         if (!fitAddonRef.current || !termRef.current) return;
         fitAddonRef.current.fit();
         const cols = termRef.current.cols;
@@ -387,12 +406,14 @@ export function Terminal({ terminalId, visible, focused, onResize }: TerminalPro
     }
   }, [visible, renderer, terminalId]);
 
-  // Visibility — when the workspace becomes active, refit and send a FORCED
-  // resize IPC. force=true makes the backend nudge the PTY (rows-1 then rows)
-  // when dimensions are unchanged — ConPTY drops same-size resizes, so this
-  // is the only reliable "SIGWINCH" that makes CLI apps (Claude Code) fully
-  // re-render their layout. Also repaints the xterm viewport. Replaces the
-  // old IntersectionObserver (which raced with the ResizeObserver fits).
+  // Visibility — when the workspace becomes active, refit (the WebGL effect
+  // above has already re-loaded the addon, so the measurement basis is the
+  // WebGL one) and repaint the viewport. Fits are frozen while hidden, so in
+  // the common case the grid is UNCHANGED here → the resize IPC is a ConPTY
+  // no-op and the inner app does not reflow. If the window was resized while
+  // this tab was hidden, this is where the single catch-up resize happens.
+  // No force/nudge here: grids are stable now, and nudging redrew Claude
+  // Code twice per tab switch (visible artifacts).
   useEffect(() => {
     if (!visible) return;
     const raf = requestAnimationFrame(() => {
@@ -405,7 +426,7 @@ export function Terminal({ terminalId, visible, focused, onResize }: TerminalPro
       lastColsRef.current = cols;
       lastRowsRef.current = rows;
       invoke('resize_terminal', {
-        params: { id: terminalId, cols, rows, force: true },
+        params: { id: terminalId, cols, rows },
       }).catch(() => {});
       onResize?.(cols, rows);
       termRef.current.refresh(0, termRef.current.rows - 1);
