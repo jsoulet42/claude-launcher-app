@@ -284,12 +284,14 @@ export const useTerminalsStore = create<TerminalsState>((set, get) => ({
     const wsName = name || `Terminal ${workspaceCounter}`;
     const ds = await getDefaultShell();
 
-    const result = await invoke<CreateTerminalResult>('create_terminal', {
-      params: { shell: opts?.shell, cwd: opts?.cwd, cols: opts?.cols ?? 80, rows: opts?.rows ?? 24 },
-    });
-
+    // Taille de création = taille stockée — le shell s'initialise à la même
+    // largeur que celle annoncée au frontend (le fit initial corrige ensuite).
     const cols = opts?.cols ?? 120;
     const rows = opts?.rows ?? 30;
+
+    const result = await invoke<CreateTerminalResult>('create_terminal', {
+      params: { shell: opts?.shell, cwd: opts?.cwd, cols, rows },
+    });
 
     const pane: PaneNode = {
       id: uuid(),

@@ -13,13 +13,10 @@
   padding: 0;
 }
 
-/* Viewport handles scroll — must fill container height */
-.terminal-container .xterm-viewport {
-  height: 100% !important;
-  overflow-y: scroll !important;
-}
-
-/* Custom scrollbar styling for xterm viewport */
+/* Custom scrollbar styling for xterm viewport.
+ * NOTE: ne PAS forcer height/overflow sur .xterm-viewport — xterm v6 gère
+ * lui-même la taille du viewport et la synchro de la scrollbar; les anciens
+ * overrides (!important) désynchronisaient le scroll interne. */
 .terminal-container .xterm-viewport::-webkit-scrollbar {
   width: 8px;
 }
@@ -37,28 +34,9 @@
   background: var(--text-secondary);
 }
 
-/* P34 phantom cursor fix.
- *
- * Root cause: xterm v6's DOM renderer paints cursor spans (.xterm-cursor,
- * .xterm-cursor-bar, etc.) at the logical cursor position, which Claude Code
- * moves everywhere in its UI via CUP sequences. cursorInactiveStyle:'none'
- * should hide these on non-focused terminals, but xterm's focus/blur timing
- * races during visibility transitions (Settings → back, tab switch) leave
- * a trail of visible cursors at whatever CUP positions.
- *
- * Fix: hide all xterm cursor spans unconditionally via CSS. We also zero
- * out the native browser caret on .xterm-helper-textarea (xterm positions
- * it at the logical cursor, browser paints a visible caret inside it).
- * Trade-off: the active terminal's cursor is only visible while typing
- * (Claude Code / pwsh show it via their own echoed glyphs). Accepted as
- * the price of zero phantom cursors across workspaces. */
-.xterm-helper-textarea {
-  caret-color: transparent !important;
-}
-
-.xterm .xterm-cursor,
-.xterm .xterm-cursor-bar,
-.xterm .xterm-cursor-block,
-.xterm .xterm-cursor-outline {
-  display: none !important;
-}
+/* P34 (historique) : l'ancien fix masquait TOUS les curseurs xterm en CSS
+ * (display:none + caret transparent) pour tuer les curseurs fantômes des
+ * terminaux inactifs. Conséquence : plus aucun curseur visible pour écrire.
+ * Le fantôme est maintenant traité à la racine : cursorInactiveStyle:'none'
+ * + focus DOM centralisé (un seul terminal focalisé à la fois) + WebGL
+ * uniquement sur le workspace visible. Le curseur natif xterm est restauré. */

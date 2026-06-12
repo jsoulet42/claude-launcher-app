@@ -7,6 +7,8 @@ import './TerminalPane.css';
 interface TerminalPaneProps {
   paneId: string;
   terminalId: string;
+  /** Workspace actif (le pane est réellement à l'écran). */
+  visible: boolean;
   onClose: () => void;
   onSplit: (direction: 'horizontal' | 'vertical') => void;
 }
@@ -18,7 +20,7 @@ const STATUS_TITLES: Record<string, string> = {
 };
 
 export function TerminalPane(props: TerminalPaneProps) {
-  const { paneId, terminalId, onClose, onSplit } = props;
+  const { paneId, terminalId, visible, onClose, onSplit } = props;
   const terminal = useTerminalsStore((s) => s.terminals[terminalId]);
   const isFocused = useTerminalsStore((s) => s.focusedPaneId === paneId);
   const setFocusedPaneId = useTerminalsStore((s) => s.setFocusedPaneId);
@@ -169,7 +171,7 @@ export function TerminalPane(props: TerminalPaneProps) {
         onClick={dismissAlert}
         onKeyDown={dismissAlert}
       >
-        <Terminal terminalId={terminalId} />
+        <Terminal terminalId={terminalId} visible={visible} focused={isFocused} />
       </div>
     </div>
   );

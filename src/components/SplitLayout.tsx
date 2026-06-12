@@ -6,9 +6,11 @@ import './SplitLayout.css';
 interface SplitLayoutProps {
   node: LayoutNode;
   workspaceId: string;
+  /** Workspace actif — propagé jusqu'aux terminaux (cycle de vie WebGL, refit, focus). */
+  visible: boolean;
 }
 
-export function SplitLayout({ node, workspaceId }: SplitLayoutProps) {
+export function SplitLayout({ node, workspaceId, visible }: SplitLayoutProps) {
   const closePane = useTerminalsStore((s) => s.closePane);
   const splitPane = useTerminalsStore((s) => s.splitPane);
   const resizeSplit = useTerminalsStore((s) => s.resizeSplit);
@@ -53,6 +55,7 @@ export function SplitLayout({ node, workspaceId }: SplitLayoutProps) {
       <TerminalPane
         paneId={node.id}
         terminalId={node.terminalId}
+        visible={visible}
         onClose={() => closePane(workspaceId, node.id)}
         onSplit={(direction) => splitPane(workspaceId, node.id, direction)}
       />
@@ -67,14 +70,14 @@ export function SplitLayout({ node, workspaceId }: SplitLayoutProps) {
       className={`split split--${direction}${dragging ? ' split--dragging' : ''}`}
     >
       <div className="split-child" style={{ flex: ratio }}>
-        <SplitLayout node={children[0]} workspaceId={workspaceId} />
+        <SplitLayout node={children[0]} workspaceId={workspaceId} visible={visible} />
       </div>
       <div
         className={`split-handle${dragging ? ' split-handle--dragging' : ''}`}
         onMouseDown={handleStartDrag(splitId, direction)}
       />
       <div className="split-child" style={{ flex: 1 - ratio }}>
-        <SplitLayout node={children[1]} workspaceId={workspaceId} />
+        <SplitLayout node={children[1]} workspaceId={workspaceId} visible={visible} />
       </div>
     </div>
   );
