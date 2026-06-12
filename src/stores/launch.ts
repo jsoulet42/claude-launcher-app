@@ -4,7 +4,10 @@ import { useTerminalsStore } from './terminals';
 import type { LayoutNode, PaneNode, SplitNode } from './terminals';
 import type { ConfigData, CreateTerminalResult, ScannedProject, TerminalInfo } from '../types/ipc';
 
-const SHELL_READY_DELAY_MS = 500;
+// Doit rester > au délai d'injection de la commande différée backend
+// (premier resize ~400ms + 150ms) pour que l'initial_command arrive
+// APRÈS le démarrage de l'app (claude) dans le terminal.
+const SHELL_READY_DELAY_MS = 2000;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
