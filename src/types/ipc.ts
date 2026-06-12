@@ -71,16 +71,30 @@ export interface ResizeTerminalParams {
   id: string;
   cols: number;
   rows: number;
+  // force=true : nudge ConPTY (rows-1 puis rows) si dimensions inchangées,
+  // pour forcer un vrai repaint de l'app interne (équivalent SIGWINCH)
+  force?: boolean;
 }
 
 export interface CloseTerminalParams {
   id: string;
 }
 
+export interface GetTerminalBufferParams {
+  id: string;
+}
+
+export interface TerminalBufferResult {
+  data: string;
+  seq: number;
+}
+
 // Event payloads
 export interface TerminalOutputEvent {
   id: string;
   data: string;
+  // Sequence per terminal — replay dedup vs get_terminal_buffer snapshot
+  seq: number;
 }
 
 export interface TerminalExitEvent {

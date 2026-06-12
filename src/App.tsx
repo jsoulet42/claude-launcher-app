@@ -233,7 +233,7 @@ function TerminalArea() {
             key={ws.id}
             className={`workspace-container ${ws.id === activeWorkspaceId ? 'workspace-active' : 'workspace-hidden'}`}
           >
-            <SplitLayout node={ws.layout} workspaceId={ws.id} />
+            <SplitLayout node={ws.layout} workspaceId={ws.id} visible={ws.id === activeWorkspaceId} />
           </div>
         ))}
       </div>

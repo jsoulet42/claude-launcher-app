@@ -84,6 +84,13 @@ pub struct ResizeTerminalParams {
     pub id: String,
     pub cols: u16,
     pub rows: u16,
+    /// Force a repaint even when dimensions are unchanged. ConPTY ignores
+    /// same-size resizes, so a plain resize can't make the inner app
+    /// (e.g. Claude Code) re-render. When force is set and dims are
+    /// unchanged, the PTY is nudged (rows-1 then rows) to generate two
+    /// real size-change events — the ConPTY equivalent of SIGWINCH.
+    #[serde(default)]
+    pub force: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,6 +104,10 @@ pub struct CloseTerminalParams {
 pub struct TerminalOutputEvent {
     pub id: String,
     pub data: String,
+    /// Monotonic per-terminal sequence number. Lets the frontend replay the
+    /// scrollback buffer (get_terminal_buffer) then drop already-included
+    /// events (seq <= snapshot seq) without losing or duplicating output.
+    pub seq: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -130,6 +141,50 @@ struct ClaudeState {
     last_output_buffer: String,
 }
 
+// ─── Output scrollback buffer ────────────────────────────────────────────────
+
+/// Maximum bytes retained per terminal for replay on (re)mount.
+/// 1 MiB ≈ several thousand lines of typical CLI output.
+const OUTPUT_BUFFER_MAX: usize = 1024 * 1024;
+
+/// Retained output + sequence counter, shared between the reader thread
+/// (producer) and the get_terminal_buffer command (consumer).
+/// `seq` counts emitted output events; buffer content always reflects all
+/// events up to and including `seq`.
+pub struct OutputBuffer {
+    data: Vec<u8>,
+    seq: u64,
+}
+
+impl OutputBuffer {
+    fn new() -> Self {
+        Self { data: Vec::new(), seq: 0 }
+    }
+
+    fn push(&mut self, bytes: &[u8]) -> u64 {
+        self.data.extend_from_slice(bytes);
+        if self.data.len() > OUTPUT_BUFFER_MAX {
+            let excess = self.data.len() - OUTPUT_BUFFER_MAX;
+            // Cut at the next LF past `excess` so the buffer head never starts
+            // mid-line, mid-escape-sequence or mid-UTF-8-char.
+            let cut = self.data[excess..]
+                .iter()
+                .position(|&b| b == b'\n')
+                .map(|p| excess + p + 1)
+                .unwrap_or(excess);
+            self.data.drain(..cut);
+        }
+        self.seq += 1;
+        self.seq
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct TerminalBufferResult {
+    pub data: String,
+    pub seq: u64,
+}
+
 // ─── Internal terminal struct ────────────────────────────────────────────────
 
 /// Internal terminal state — not serialized, holds the Pty and reader task.
@@ -138,6 +193,8 @@ struct Terminal {
     pty: Arc<Pty>,
     /// Handle to the reader thread that continuously reads output
     reader_handle: Option<JoinHandle<()>>,
+    /// Retained output for replay when the frontend (re)mounts the xterm view.
+    output: Arc<Mutex<OutputBuffer>>,
 }
 
 // ─── TerminalManager ─────────────────────────────────────────────────────────
@@ -211,18 +268,22 @@ impl TerminalManager {
             exit_code: None,
         };
 
+        let output = Arc::new(Mutex::new(OutputBuffer::new()));
+
         // Spawn the output reader task
         let reader_handle = spawn_reader(
             id.clone(),
             pty.clone(),
             self.app_handle.clone(),
             self.terminals.clone(),
+            output.clone(),
         );
 
         let terminal = Terminal {
             info: info.clone(),
             pty,
             reader_handle: Some(reader_handle),
+            output,
         };
 
         {
@@ -262,33 +323,55 @@ impl TerminalManager {
     }
 
     /// Resize a terminal.
-    pub fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
+    ///
+    /// With `force`, a same-size resize becomes a "nudge" (rows-1 then rows):
+    /// ConPTY drops same-size resizes, so this is the only way to make the
+    /// inner app re-render its layout on demand (tab switch, recovery).
+    pub fn resize(&self, id: &str, cols: u16, rows: u16, force: bool) -> Result<(), String> {
         if cols < 1 || rows < 1 {
             let msg = format!("Invalid terminal size: cols={} rows={} (must be >= 1)", cols, rows);
             tracing::error!("{}", msg);
             return Err(msg);
         }
 
-        let mut map = self.terminals.lock().map_err(|e| {
-            let msg = format!("Failed to lock terminals map: {}", e);
-            tracing::error!("{}", msg);
-            msg
-        })?;
+        // Snapshot what we need, then release the map lock — the nudge path
+        // sleeps and must not block other terminal operations.
+        let (pty, same_size) = {
+            let mut map = self.terminals.lock().map_err(|e| {
+                let msg = format!("Failed to lock terminals map: {}", e);
+                tracing::error!("{}", msg);
+                msg
+            })?;
 
-        let terminal = map.get_mut(id).ok_or_else(|| {
-            let msg = format!("Terminal not found: {}", id);
-            tracing::error!("{}", msg);
-            msg
-        })?;
+            let terminal = map.get_mut(id).ok_or_else(|| {
+                let msg = format!("Terminal not found: {}", id);
+                tracing::error!("{}", msg);
+                msg
+            })?;
 
-        terminal.pty.resize(cols, rows).map_err(|e| {
+            let same = terminal.info.cols == cols && terminal.info.rows == rows;
+            terminal.info.cols = cols;
+            terminal.info.rows = rows;
+            (terminal.pty.clone(), same)
+        };
+
+        if force && same_size && rows > 1 {
+            tracing::debug!("Terminal {} nudge resize ({}x{})", id, cols, rows);
+            pty.resize(cols, rows - 1).map_err(|e| {
+                let msg = format!("Failed to nudge terminal {}: {}", id, e);
+                tracing::error!("{}", msg);
+                msg
+            })?;
+            // Let ConPTY process the shrink before restoring, so the app
+            // sees two distinct size-change events.
+            std::thread::sleep(std::time::Duration::from_millis(60));
+        }
+
+        pty.resize(cols, rows).map_err(|e| {
             let msg = format!("Failed to resize terminal {}: {}", id, e);
             tracing::error!("{}", msg);
             msg
         })?;
-
-        terminal.info.cols = cols;
-        terminal.info.rows = rows;
 
         Ok(())
     }
@@ -349,6 +432,30 @@ impl TerminalManager {
             let _ = self.close(id);
         }
         tracing::info!("All terminals closed ({} total)", ids.len());
+    }
+
+    /// Snapshot the retained output buffer of a terminal (replay on mount).
+    pub fn buffer(&self, id: &str) -> Result<TerminalBufferResult, String> {
+        let map = self.terminals.lock().map_err(|e| {
+            let msg = format!("Failed to lock terminals map: {}", e);
+            tracing::error!("{}", msg);
+            msg
+        })?;
+
+        let terminal = map.get(id).ok_or_else(|| {
+            let msg = format!("Terminal not found: {}", id);
+            tracing::error!("{}", msg);
+            msg
+        })?;
+
+        let buf = terminal.output.lock().map_err(|e| {
+            format!("output buffer lock poisoned: {}", e)
+        })?;
+
+        Ok(TerminalBufferResult {
+            data: String::from_utf8_lossy(&buf.data).to_string(),
+            seq: buf.seq,
+        })
     }
 
     /// List all terminals with their current status.
@@ -667,6 +774,7 @@ fn spawn_reader(
     pty: Arc<Pty>,
     app_handle: AppHandle,
     terminals: Arc<Mutex<HashMap<String, Terminal>>>,
+    output: Arc<Mutex<OutputBuffer>>,
 ) -> JoinHandle<()> {
     // Spawn the process watcher thread
     let watcher_pty = pty.clone();
@@ -745,11 +853,20 @@ fn spawn_reader(
                                 tracing::error!("OSC parser panicked for terminal {}: {:?}", id, e);
                             });
 
+                            // Retain in the scrollback buffer and stamp with a
+                            // sequence number. Single producer (this thread), so
+                            // emit order matches seq order.
+                            let seq = match output.lock() {
+                                Ok(mut buf) => buf.push(data.as_bytes()),
+                                Err(_) => 0,
+                            };
+
                             let _ = app_handle.emit(
                                 "terminal:output",
                                 TerminalOutputEvent {
                                     id: id.clone(),
                                     data,
+                                    seq,
                                 },
                             );
                         }
@@ -990,12 +1107,13 @@ pub fn resize_terminal(
     manager: tauri::State<'_, TerminalManager>,
 ) -> Result<(), String> {
     tracing::info!(
-        "IPC: resize_terminal id={} cols={} rows={}",
+        "IPC: resize_terminal id={} cols={} rows={} force={}",
         params.id,
         params.cols,
-        params.rows
+        params.rows,
+        params.force
     );
-    manager.resize(&params.id, params.cols, params.rows)
+    manager.resize(&params.id, params.cols, params.rows, params.force)
 }
 
 #[tauri::command]
@@ -1005,6 +1123,23 @@ pub fn close_terminal(
 ) -> Result<(), String> {
     tracing::info!("IPC: close_terminal id={}", params.id);
     manager.close(&params.id)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GetTerminalBufferParams {
+    pub id: String,
+}
+
+/// Snapshot the retained output of a terminal for frontend replay.
+/// Returned `seq` lets the caller drop output events already contained
+/// in the snapshot (event.seq <= snapshot.seq).
+#[tauri::command]
+pub fn get_terminal_buffer(
+    params: GetTerminalBufferParams,
+    manager: tauri::State<'_, TerminalManager>,
+) -> Result<TerminalBufferResult, String> {
+    tracing::debug!("IPC: get_terminal_buffer id={}", params.id);
+    manager.buffer(&params.id)
 }
 
 #[tauri::command]

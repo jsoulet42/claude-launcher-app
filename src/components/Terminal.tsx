@@ -1,19 +1,24 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Terminal as XTerm } from '@xterm/xterm';
-import type { ITheme } from '@xterm/xterm';
+import type { ITheme, ITerminalOptions } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 import { open as shellOpen } from '@tauri-apps/plugin-shell';
-import { useTauriEvent } from '../hooks/useTauriEvent';
 import { terminalRefs } from '../terminalRefs';
+import { registerTerminalHandlers } from '../terminalBus';
 import { useDiagnosticsStore } from '../stores/diagnostics';
-import type { TerminalOutputEvent, TerminalExitEvent, TerminalErrorEvent } from '../types/ipc';
+import type { TerminalOutputEvent, TerminalBufferResult } from '../types/ipc';
 import './Terminal.css';
 
 interface TerminalProps {
   terminalId: string;
+  /** Workspace actif — pilote le cycle de vie WebGL et le refit. */
+  visible: boolean;
+  /** Pane focalisé dans le store — pilote le focus DOM réel. */
+  focused: boolean;
   onResize?: (cols: number, rows: number) => void;
 }
 
@@ -83,28 +88,34 @@ function getXtermTheme(): ITheme {
   return XTERM_THEMES.dark;
 }
 
-const TERMINAL_OPTIONS = {
+const IS_WINDOWS = navigator.userAgent.includes('Windows');
+
+const TERMINAL_OPTIONS: ITerminalOptions = {
   fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
   fontSize: 14,
   lineHeight: 1.2,
   cursorBlink: true,
-  cursorStyle: 'bar' as const,
+  cursorStyle: 'bar',
   // P34 — `outline` made inactive terminals paint a visible cursor that
   // followed every CUP emitted by Claude Code's UI (spinners, border redraws),
   // producing phantom cursors jumping around the UI zone. `none` hides the
-  // cursor entirely when the terminal loses focus, which kills the phantom.
-  cursorInactiveStyle: 'none' as const,
+  // cursor entirely when the terminal loses focus. Combined with centralized
+  // focus management (a single terminal holds DOM focus at any time), only
+  // the focused terminal ever paints a cursor.
+  cursorInactiveStyle: 'none',
   scrollback: 5000,
+  // ConPTY rewrites the screen on resize; this hint enables xterm's
+  // Windows-specific reflow workarounds (broken/duplicated wrapped lines).
+  ...(IS_WINDOWS ? { windowsPty: { backend: 'conpty' as const } } : {}),
   theme: XTERM_THEMES.dark,
 };
 
-export function Terminal({ terminalId, onResize }: TerminalProps) {
-  // P34 diagnostic — selected renderer (webgl default, dom as fallback for cursor phantom diagnosis).
-  // Changing renderer remounts the xterm instance (renderer is in the mount useEffect deps).
+export function Terminal({ terminalId, visible, focused, onResize }: TerminalProps) {
   const renderer = useDiagnosticsStore((s) => s.renderer);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const webglRef = useRef<WebglAddon | null>(null);
   const ipcTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
@@ -158,7 +169,9 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     }, 50);
   }, [doFitImmediate]);
 
-  // Mount: create xterm instance
+  // Mount: create xterm instance. Deps = [terminalId] only — the renderer
+  // toggle no longer remounts xterm (WebGL has its own lifecycle effect),
+  // so the local buffer survives diagnostics toggling.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -167,34 +180,11 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     const fitAddon = new FitAddon();
     term.loadAddon(fitAddon);
 
-    // WebGL addon with context loss recovery.
-    // P34 diagnostic — if the user selects the 'dom' renderer in preferences, we skip
-    // loading WebglAddon entirely, leaving xterm.js v6 on its default DOM renderer.
-    // This is the fallback path to diagnose WebGL-specific phantom cursor issues.
-    if (renderer === 'webgl') {
-      try {
-        const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => {
-          console.warn('WebGL context lost, attempting recovery...');
-          webglAddon.dispose();
-          try {
-            const newWebgl = new WebglAddon();
-            newWebgl.onContextLoss(() => {
-              console.warn('WebGL context lost again, falling back to canvas permanently');
-              newWebgl.dispose();
-            });
-            term.loadAddon(newWebgl);
-          } catch {
-            console.warn('WebGL reload failed, using canvas renderer');
-          }
-        });
-        term.loadAddon(webglAddon);
-      } catch {
-        console.warn('WebGL not available, using canvas renderer');
-      }
-    } else {
-      console.info('[diagnostics] Terminal using DOM renderer (WebGL disabled)');
-    }
+    // Grapheme-aware unicode handling — Claude Code output is dense in
+    // braille spinners, emoji and box drawing; default width tables
+    // misalign them (display artifacts on wrapped/redrawn frames).
+    term.loadAddon(new UnicodeGraphemesAddon());
+    term.unicode.activeVersion = '15-graphemes';
 
     // Web links: Ctrl+Click to open URLs in system browser
     term.loadAddon(new WebLinksAddon((_event, url) => {
@@ -208,19 +198,27 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
 
     // Initial fit — delay 300ms to avoid ConPTY race condition where
     // ResizePseudoConsole is ignored if called too soon after CreateProcess
-    // (microsoft/terminal#10400)
-    setTimeout(() => {
-      if (!fitAddonRef.current || !termRef.current) return;
-      fitAddonRef.current.fit();
-      const cols = termRef.current.cols;
-      const rows = termRef.current.rows;
-      lastColsRef.current = cols;
-      lastRowsRef.current = rows;
-      invoke('resize_terminal', {
-        params: { id: terminalId, cols, rows },
-      }).catch(() => {});
-      onResize?.(cols, rows);
-    }, 300);
+    // (microsoft/terminal#10400). The race window is timing-dependent: when
+    // the first resize IS swallowed, ConPTY keeps the creation size (120x30)
+    // forever while xterm displays fewer rows — bottom-anchored TUIs (Claude
+    // Code) then draw their top rows above the viewport. The confirmation
+    // re-sends at 900/2100ms are no-ops when the first resize was applied
+    // (same-size resize is dropped by ConPTY) and repair the desync when it
+    // was swallowed.
+    const initialFitTimers = [300, 900, 2100].map((delay) =>
+      setTimeout(() => {
+        if (!fitAddonRef.current || !termRef.current) return;
+        fitAddonRef.current.fit();
+        const cols = termRef.current.cols;
+        const rows = termRef.current.rows;
+        lastColsRef.current = cols;
+        lastRowsRef.current = rows;
+        invoke('resize_terminal', {
+          params: { id: terminalId, cols, rows },
+        }).catch(() => {});
+        onResize?.(cols, rows);
+      }, delay)
+    );
 
     // Input: user keystrokes + xterm-handled Ctrl+V (clipboard text) → ConPTY.
     // When the inner app enables bracketed paste mode (\x1b[?2004h, e.g. pwsh),
@@ -287,6 +285,49 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
       return true;
     });
 
+    // --- Output wiring with scrollback replay ---
+    // Phase 'replay': queue incoming events while fetching the backend
+    // snapshot. Phase 'live': write events directly. The per-terminal seq
+    // stamped by the backend dedupes events already contained in the
+    // snapshot — no lost first-prompt, no doubled chunks.
+    let mode: 'replay' | 'live' = 'replay';
+    const queue: TerminalOutputEvent[] = [];
+
+    const unregister = registerTerminalHandlers(terminalId, {
+      onOutput: (e) => {
+        if (mode === 'replay') {
+          queue.push(e);
+        } else {
+          term.write(e.data);
+        }
+      },
+      onExit: (e) => {
+        term.write(`\r\n\x1b[31mProcess exited (code ${e.code})\x1b[0m\r\n`);
+      },
+      onError: (e) => {
+        term.write(`\r\n\x1b[33mError: ${e.error}\x1b[0m\r\n`);
+      },
+    });
+
+    invoke<TerminalBufferResult>('get_terminal_buffer', {
+      params: { id: terminalId },
+    })
+      .then((snapshot) => {
+        if (termRef.current !== term) return; // unmounted meanwhile
+        if (snapshot.data) term.write(snapshot.data);
+        for (const e of queue) {
+          if (e.seq > snapshot.seq) term.write(e.data);
+        }
+        queue.length = 0;
+        mode = 'live';
+      })
+      .catch(() => {
+        // Terminal inconnu côté backend (déjà fermé) — flush et passe en live.
+        for (const e of queue) term.write(e.data);
+        queue.length = 0;
+        mode = 'live';
+      });
+
     // ResizeObserver — fit immediately, debounce IPC only
     const observer = new ResizeObserver(() => {
       requestAnimationFrame(() => {
@@ -299,56 +340,87 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
 
     return () => {
       observer.disconnect();
+      initialFitTimers.forEach(clearTimeout);
       if (ipcTimerRef.current) clearTimeout(ipcTimerRef.current);
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
       if (fitTimerRef.current) clearTimeout(fitTimerRef.current);
       dataDisposable.dispose();
+      unregister();
       terminalRefs.delete(terminalId);
+      if (webglRef.current) {
+        webglRef.current.dispose();
+        webglRef.current = null;
+      }
       term.dispose();
       termRef.current = null;
       fitAddonRef.current = null;
     };
-    // P34 — `renderer` is in deps: toggling webgl/dom remounts the xterm instance
-    // (destroy + recreate). Scrollback buffer is reset on remount — acceptable since
-    // renderer toggling is a rare manual diagnostic action, not a runtime operation.
-  }, [terminalId, renderer]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [terminalId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Event: terminal output
-  const handleOutput = useCallback(
-    (payload: TerminalOutputEvent) => {
-      if (payload.id === terminalId) {
-        termRef.current?.write(payload.data);
-      }
-    },
-    [terminalId]
-  );
-  useTauriEvent<TerminalOutputEvent>('terminal:output', handleOutput);
+  // WebGL lifecycle — a WebGL context is held ONLY while the terminal is in
+  // the active workspace. WebView2 caps live WebGL contexts (~16); with many
+  // tabs × panes, permanent contexts get evicted by the browser → black or
+  // frozen terminals on tab return. Hidden terminals fall back to the DOM
+  // renderer (their buffer keeps updating; cheap while invisible).
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
 
-  // Event: terminal exit
-  const handleExit = useCallback(
-    (payload: TerminalExitEvent) => {
-      if (payload.id === terminalId) {
-        termRef.current?.write(
-          `\r\n\x1b[31mProcess exited (code ${payload.code})\x1b[0m\r\n`
-        );
+    if (visible && renderer === 'webgl' && !webglRef.current) {
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => {
+          // Context evicted by the browser — release it; the next
+          // visibility transition will retry a fresh context.
+          console.warn(`[terminal ${terminalId}] WebGL context lost, releasing`);
+          webgl.dispose();
+          if (webglRef.current === webgl) webglRef.current = null;
+        });
+        term.loadAddon(webgl);
+        webglRef.current = webgl;
+      } catch {
+        console.warn(`[terminal ${terminalId}] WebGL unavailable, DOM renderer`);
       }
-    },
-    [terminalId]
-  );
-  useTauriEvent<TerminalExitEvent>('terminal:exit', handleExit);
+    } else if ((!visible || renderer !== 'webgl') && webglRef.current) {
+      webglRef.current.dispose();
+      webglRef.current = null;
+    }
+  }, [visible, renderer, terminalId]);
 
-  // Event: terminal error
-  const handleError = useCallback(
-    (payload: TerminalErrorEvent) => {
-      if (payload.id === terminalId) {
-        termRef.current?.write(
-          `\r\n\x1b[33mError: ${payload.error}\x1b[0m\r\n`
-        );
-      }
-    },
-    [terminalId]
-  );
-  useTauriEvent<TerminalErrorEvent>('terminal:error', handleError);
+  // Visibility — when the workspace becomes active, refit and send a FORCED
+  // resize IPC. force=true makes the backend nudge the PTY (rows-1 then rows)
+  // when dimensions are unchanged — ConPTY drops same-size resizes, so this
+  // is the only reliable "SIGWINCH" that makes CLI apps (Claude Code) fully
+  // re-render their layout. Also repaints the xterm viewport. Replaces the
+  // old IntersectionObserver (which raced with the ResizeObserver fits).
+  useEffect(() => {
+    if (!visible) return;
+    const raf = requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (!fitAddonRef.current || !termRef.current || !container) return;
+      if (container.offsetWidth === 0 || container.offsetHeight === 0) return;
+      fitAddonRef.current.fit();
+      const cols = termRef.current.cols;
+      const rows = termRef.current.rows;
+      lastColsRef.current = cols;
+      lastRowsRef.current = rows;
+      invoke('resize_terminal', {
+        params: { id: terminalId, cols, rows, force: true },
+      }).catch(() => {});
+      onResize?.(cols, rows);
+      termRef.current.refresh(0, termRef.current.rows - 1);
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [visible, terminalId, onResize]);
+
+  // Focus — keep real DOM focus in sync with the store's focused pane.
+  // Without this, switching tabs or clicking a pane header moved the logical
+  // focus while keystrokes kept going to the previously focused terminal.
+  useEffect(() => {
+    if (focused && visible) {
+      termRef.current?.focus();
+    }
+  }, [focused, visible]);
 
   // Sync xterm theme on theme-changed event
   useEffect(() => {
@@ -359,43 +431,6 @@ export function Terminal({ terminalId, onResize }: TerminalProps) {
     document.addEventListener('theme-changed', updateXtermTheme);
     return () => document.removeEventListener('theme-changed', updateXtermTheme);
   }, []);
-
-  // Re-fit when the element becomes visible (tab switch)
-  // Always force a resize IPC on visibility change to send SIGWINCH,
-  // even if dimensions haven't changed — this forces CLI apps (like claude)
-  // to re-render their layout.
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries[0]?.isIntersecting) {
-        // Delay slightly to let the browser finish layout after display change
-        requestAnimationFrame(() => {
-          if (fitAddonRef.current && termRef.current) {
-            const container = containerRef.current;
-            if (container && container.offsetWidth > 0 && container.offsetHeight > 0) {
-              fitAddonRef.current.fit();
-              const cols = termRef.current.cols;
-              const rows = termRef.current.rows;
-              lastColsRef.current = cols;
-              lastRowsRef.current = rows;
-              // Always send resize IPC on visibility — forces SIGWINCH
-              invoke('resize_terminal', {
-                params: { id: terminalId, cols, rows },
-              }).catch(() => {});
-              onResize?.(cols, rows);
-              // Force full re-render after visibility change
-              termRef.current.refresh(0, termRef.current.rows - 1);
-            }
-          }
-        });
-      }
-    });
-    observer.observe(el);
-
-    return () => observer.disconnect();
-  }, [terminalId, doFit, onResize]);
 
   return <div ref={containerRef} className="terminal-container" />;
 }
