@@ -64,6 +64,29 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Claude Launcher ${{ github.ref_name }}"
-          releaseBody: "See the assets below to download the installer for your platform."
+          releaseBody: |
+            See the assets below to download the installer for your platform.
+
+            ## Installation
+
+            ### Windows
+            Run the `.exe` (NSIS) installer.
+
+            ### Linux
+            - **Fedora / RHEL**: `sudo dnf install ./Claude.Launcher-*.rpm`
+            - **Debian / Ubuntu**: `sudo apt install ./Claude.Launcher-*.deb`
+            - **Any distro**: download the `.AppImage`, then `chmod +x` and run it.
+
+            ### macOS
+            The app is not notarized yet (no Apple Developer certificate), so
+            Gatekeeper shows a misleading **"Claude Launcher is damaged"** error
+            on first launch. The file is fine — clear the quarantine flag after
+            copying the app to Applications:
+
+            ```
+            xattr -cr "/Applications/Claude Launcher.app"
+            ```
+
+            Then launch normally.
           releaseDraft: true
           prerelease: false
