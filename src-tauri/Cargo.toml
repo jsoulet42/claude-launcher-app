@@ -1,6 +1,6 @@
 [package]
 name = "claude-launcher"
-version = "2.0.6"
+version = "2.0.7"
 description = "Desktop app for managing multi-terminal Claude Code workspaces"
 authors = ["jsoulet"]
 edition = "2021"
