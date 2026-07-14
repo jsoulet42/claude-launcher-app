@@ -85,6 +85,18 @@ impl Pty {
             tracing::debug!("TERM not set, defaulting to xterm-256color");
         }
 
+        // Claude Code >= 2.1.150 enables xterm mouse tracking in its TUI. Once
+        // active, xterm.js forwards every click/drag to the app instead of doing
+        // native text selection — selection and copy die in ALL panes running
+        // claude. Opting out restores native select/copy (the launcher's core
+        // copy flow). Trade-off: no wheel-scroll/click handling INSIDE Claude
+        // Code's fullscreen mode (classic renderer scrolls natively via xterm).
+        // Respect an explicit user override from the parent environment.
+        if cmd.get_env("CLAUDE_CODE_DISABLE_MOUSE").is_none() {
+            cmd.env("CLAUDE_CODE_DISABLE_MOUSE", "1");
+            tracing::debug!("CLAUDE_CODE_DISABLE_MOUSE not set, defaulting to 1 (native selection)");
+        }
+
         let child = pair.slave.spawn_command(cmd).map_err(|e| {
             let msg = format!("spawn_command: {}", e);
             tracing::error!("{}", msg);
