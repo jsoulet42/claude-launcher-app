@@ -630,8 +630,13 @@ fn resolve_shell(shell: Option<String>) -> (String, Option<String>) {
 
 // ─── OSC title parser for Claude detection ──────────────────────────────────
 
-/// Braille spinner characters used by Claude Code when working.
-const BRAILLE_SPINNERS: &[char] = &['\u{2802}', '\u{2810}', '\u{2808}', '\u{2801}', '\u{2804}', '\u{2820}'];
+/// Spinner characters used by Claude Code when working.
+/// Braille dots for claude < 2.1.229, circle halves (◐◓◑◒) since 2.1.229
+/// ("Updated terminal title busy-spinner glyphs").
+const BUSY_SPINNERS: &[char] = &[
+    '\u{2802}', '\u{2810}', '\u{2808}', '\u{2801}', '\u{2804}', '\u{2820}',
+    '\u{25D0}', '\u{25D1}', '\u{25D2}', '\u{25D3}',
+];
 
 /// Star character emitted by Claude Code when done.
 const CLAUDE_DONE_CHAR: char = '\u{2733}'; // ✳
@@ -760,10 +765,10 @@ fn process_osc_title(
 
     tracing::debug!("OSC title for terminal {}: {:?}", id, title);
 
-    if BRAILLE_SPINNERS.contains(&first_char) {
+    if BUSY_SPINNERS.contains(&first_char) {
         state.is_working = true;
         // Store the title after the spinner + space
-        let rest = title.trim_start_matches(|c: char| BRAILLE_SPINNERS.contains(&c) || c == ' ');
+        let rest = title.trim_start_matches(|c: char| BUSY_SPINNERS.contains(&c) || c == ' ');
         state.last_title = rest.to_string();
     } else if first_char == CLAUDE_DONE_CHAR && state.is_working {
         // Transition: working → done

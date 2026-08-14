@@ -460,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "claude-launcher"
-version = "2.0.7"
+version = "2.0.8"
 dependencies = [
  "anyhow",
  "dunce",
