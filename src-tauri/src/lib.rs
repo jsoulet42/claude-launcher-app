@@ -49,6 +49,24 @@ fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// WebKitGTK + pilote NVIDIA propriétaire : le renderer DMABUF produit des
+/// artefacts d'affichage (frames périmées, zones non redessinées) — dans un
+/// terminal embarqué, ça donne des listes de complétion "au-dessus" du prompt,
+/// des caractères fantômes et des lignes qui semblent se dupliquer, alors que
+/// la logique PTY/xterm est correcte (vérifié par repro WSLg : rendu sain).
+/// Le contournement standard Tauri est de désactiver DMABUF avant la création
+/// du webview. On ne l'applique que si un pilote NVIDIA est présent, et jamais
+/// par-dessus un choix explicite de l'utilisateur.
+#[cfg(target_os = "linux")]
+fn apply_webkit_gpu_workarounds() {
+    let nvidia = std::path::Path::new("/proc/driver/nvidia").exists()
+        || std::path::Path::new("/sys/module/nvidia").exists();
+    if nvidia && std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+        info!("NVIDIA driver detected — setting WEBKIT_DISABLE_DMABUF_RENDERER=1 (WebKitGTK rendering artifact workaround)");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tracing_subscriber::fmt()
@@ -59,6 +77,9 @@ pub fn run() {
         .init();
 
     info!("Claude Launcher v{} starting", env!("CARGO_PKG_VERSION"));
+
+    #[cfg(target_os = "linux")]
+    apply_webkit_gpu_workarounds();
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())

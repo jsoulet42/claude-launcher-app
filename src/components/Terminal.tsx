@@ -95,7 +95,11 @@ const TERMINAL_OPTIONS: ITerminalOptions = {
   // dans xterm v6) — sans ce flag, loadAddon JETTE au montage et fait
   // tomber tout l'arbre React (écran vide).
   allowProposedApi: true,
-  fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', monospace",
+  // Windows fonts first (Cascadia ships with Win11), then common Linux
+  // monospace fonts — Fedora/Ubuntu ship none of the Windows ones, and the
+  // generic `monospace` fallback has unreliable glyph coverage/metrics
+  // (sidebar-style boxes for powerline/nerd glyphs in zsh themes).
+  fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Fira Code', 'Consolas', 'DejaVu Sans Mono', 'Noto Sans Mono', 'Liberation Mono', monospace",
   fontSize: 14,
   lineHeight: 1.2,
   cursorBlink: true,
